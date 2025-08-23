@@ -50,7 +50,9 @@ CREATE TABLE `suppliers` (
   `company_name` VARCHAR(100) NOT NULL,
   `contact_person` VARCHAR(100) NOT NULL,
   `phone` VARCHAR(20) NOT NULL,
+  `contuct_phone` VARCHAR(20) NOT NULL,
   `location` VARCHAR(100) NOT NULL,
+   
   `region_id` INT(11) NOT NULL,
   `sector_id` INT(11) NOT NULL,
   `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -90,17 +92,29 @@ INSERT INTO `Company_Roles` (`company_role_id`, `company_role_name`) VALUES
 (8, 'Purchaser')
 ON DUPLICATE KEY UPDATE `company_role_name` = VALUES(`company_role_name`);
 
+
+
+
+
+
 -- 6. Users Table
 CREATE TABLE `Users` (
   `user_id` INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
   `first_name` VARCHAR(100) NOT NULL,
   `last_name` VARCHAR(100) NOT NULL,
-  `phone_number` VARCHAR(15) NOT NULL,
-  `active_status` TINYINT(1) NOT NULL DEFAULT 1,
+  `email` VARCHAR(150) NOT NULL UNIQUE,
+  `phone_number` VARCHAR(20) NOT NULL,
+  `address` VARCHAR(255),
+  `status` ENUM('active', 'inactive') NOT NULL DEFAULT 'active',
+  `join_date` DATE NOT NULL,
+  `salary` DECIMAL(10,2) DEFAULT 0,
+  `emergency_contact` VARCHAR(100),
+  `account_number` VARCHAR(30) UNIQUE,
   `added_date` DATETIME DEFAULT CURRENT_TIMESTAMP,
   `company_role_id` INT NOT NULL,
   FOREIGN KEY (`company_role_id`) REFERENCES `Company_Roles`(`company_role_id`) ON DELETE CASCADE
 ) ENGINE=InnoDB;
+
 
 -- 7. Emails Table
 CREATE TABLE `Emails` (
@@ -137,6 +151,7 @@ CREATE TABLE `MarketerVisitPlans` (
   `notes` TEXT,
   `type` VARCHAR(225) NOT NULL,
   `status` ENUM('Pending', 'Completed', 'Cancelled') NOT NULL DEFAULT 'Pending',
+  `feedback` TEXT DEFAULT NULL,
     `created_by` INT NOT NULL,
   `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   FOREIGN KEY (`supplier_id`) REFERENCES `suppliers`(`id`) ON DELETE CASCADE,
@@ -264,14 +279,130 @@ CREATE TABLE `InstoreCollectionItems` (
 CREATE TABLE `WeeklyPlan` (
   `id` INT AUTO_INCREMENT PRIMARY KEY,
   `plan_date` DATE NOT NULL,
+  `day` VARCHAR(255),
   `collection_type_id` INT NOT NULL,
   `supplier_id` INT NOT NULL,
+  `note` TEXT,
   `created_by` INT NOT NULL,
   `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   FOREIGN KEY (`collection_type_id`) REFERENCES `CollectionType`(`id`),
   FOREIGN KEY (`supplier_id`) REFERENCES `suppliers`(`id`),
   FOREIGN KEY (`created_by`) REFERENCES `Users`(`user_id`)
 );
+
+-- Collection Sessions (Fixed)
+CREATE TABLE collection_sessions (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  session_number VARCHAR(50) NOT NULL,
+  supplier_id INT NOT NULL,
+  marketer_id INT NULL,
+  coordinator_id INT NULL,
+  site_location VARCHAR(255) NOT NULL,
+  estimated_start_date DATETIME NOT NULL,
+  estimated_end_date DATETIME NOT NULL,
+  actual_start_date DATETIME NULL,
+  actual_end_date DATETIME NULL,
+  status ENUM('planned', 'ongoing', 'completed', 'cancelled') DEFAULT 'planned',
+  estimatedAmount DECIMAL(10, 2) DEFAULT 0.00,
+  total_time_spent INT DEFAULT 0,
+  performance JSON,
+  collection_data JSON,
+  problems JSON,
+  comments JSON,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+
+  FOREIGN KEY (supplier_id) REFERENCES suppliers(id),
+  FOREIGN KEY (marketer_id) REFERENCES Users(user_id),
+  FOREIGN KEY (coordinator_id) REFERENCES CollectionCoordinators(id)
+);
+
+
+CREATE TABLE cost_evaluations (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  session_id INT NOT NULL, -- links to collection_sessions.id
+  supplier_name VARCHAR(255) NOT NULL,
+  collection_coordinator VARCHAR(255) NOT NULL,
+  starting_date DATE NOT NULL,
+  end_date DATE NOT NULL,
+  collection_type TEXT,
+
+  -- Collection amounts
+  collected_amount_kg DECIMAL(10,2) DEFAULT 0,
+  collected_amount_bag_number INT DEFAULT 0,
+  sw DECIMAL(10,2) DEFAULT 0,
+  sc DECIMAL(10,2) DEFAULT 0,
+  mixed DECIMAL(10,2) DEFAULT 0,
+  carton DECIMAL(10,2) DEFAULT 0,
+  card DECIMAL(10,2) DEFAULT 0,
+  newspaper DECIMAL(10,2) DEFAULT 0,
+  magazine DECIMAL(10,2) DEFAULT 0,
+  plastic DECIMAL(10,2) DEFAULT 0,
+  boxfile DECIMAL(10,2) DEFAULT 0,
+  metal DECIMAL(10,2) DEFAULT 0,
+  book DECIMAL(10,2) DEFAULT 0,
+
+  -- Bag information
+  average_kg_per_bag DECIMAL(10,2) DEFAULT 0,
+  rate_of_bag DECIMAL(10,2) DEFAULT 0,
+  cost_of_bag_per_kg DECIMAL(10,3) DEFAULT 0,
+  bag_received_from_stock INT DEFAULT 0,
+  bag_used INT DEFAULT 0,
+  bag_return INT DEFAULT 0,
+
+  -- Sorting and collection labour
+  no_of_sorting_and_collection_labour INT DEFAULT 0,
+  sorting_rate DECIMAL(10,2) DEFAULT 0,
+  cost_of_sorting_and_collection_labour DECIMAL(12,2) DEFAULT 0,
+  cost_of_labour_per_kg DECIMAL(10,2) DEFAULT 0,
+
+  -- Loading/unloading labour
+  no_of_loading_unloading_labour INT DEFAULT 0,
+  loading_unloading_rate DECIMAL(10,2) DEFAULT 0,
+  cost_of_loading_unloading DECIMAL(12,2) DEFAULT 0,
+  cost_of_loading_labour_per_kg DECIMAL(10,3) DEFAULT 0,
+
+  -- Transportation
+  transported_by VARCHAR(100),
+  no_of_trip INT DEFAULT 0,
+  cost_of_transportation DECIMAL(12,2) DEFAULT 0,
+  cost_of_transport_per_kg DECIMAL(10,3) DEFAULT 0,
+
+  -- Quality & feedback
+  quality_checked_by VARCHAR(255),
+  quality_approved_by VARCHAR(255),
+  customer_feedback TEXT,
+  key_operation_issues TEXT,
+
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+
+  CONSTRAINT fk_cost_evaluation_session FOREIGN KEY (session_id) REFERENCES collection_sessions(id) ON DELETE CASCADE
+);
+CREATE TABLE mamas (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  status ENUM('active', 'inactive') NOT NULL,
+  joinDate DATE NOT NULL,
+  fullName VARCHAR(255) NOT NULL,
+  woreda VARCHAR(255) NOT NULL,
+  phone VARCHAR(20) NOT NULL,
+  accountNumber VARCHAR(50) NOT NULL,
+  createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updatedAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+);
+
+CREATE TABLE customers (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  status VARCHAR(20) NOT NULL,
+  joinDate DATE NOT NULL,
+  customerName VARCHAR(255) NOT NULL,
+  contactPerson VARCHAR(255) NOT NULL,
+  phone VARCHAR(20) NOT NULL,
+  sector VARCHAR(100) NOT NULL,
+  location VARCHAR(255) NOT NULL,
+  createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
 
 -- 18. Moms Handicrafts
 CREATE TABLE `Moms_Handicrafts` (

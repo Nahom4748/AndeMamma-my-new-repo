@@ -1,3 +1,4 @@
+const e = require('express');
 const db = require('../config/db.config'); // <-- Import the pool
 
 async function assignMarketerToSupplier(marketerId, supplierId) {
@@ -113,9 +114,11 @@ async function saveVisitPlans(plans) {
       supplier_id,
        type,
       details,
+      status,
+      notes,
       marketer_id
     } = plan;
-
+console.log("Visit plan details from marketors service:", plan);
     if (
       supplier_id === undefined ||
       visit_date === undefined ||
@@ -126,13 +129,13 @@ async function saveVisitPlans(plans) {
     }
 
     // Use null for optional fields
-    const notes = details !== undefined ? details : null;
+    const notess = details !== undefined ? details : null;
 
     return db.query(
       `INSERT INTO MarketerVisitPlans 
         (supplier_id, visit_date, type, notes, status, created_by) 
        VALUES (?, ?, ?, ?, ?, ?)`,
-      [supplier_id, visit_date, type, notes, "Pending", marketer_id]
+      [supplier_id, visit_date, type, notess, status, marketer_id]
     );
   });
 
@@ -156,7 +159,6 @@ async function getMarketerVisitPlans() {
       u.first_name,
       u.last_name,
       u.phone_number AS marketer_phone,
-      u.active_status,
       u.added_date AS marketer_added_date,
       CONCAT(u.first_name, ' ', u.last_name) AS marketer_name
     FROM MarketerVisitPlans mvp
@@ -184,6 +186,90 @@ async function deleteVisitPlan(visitId) {
   return { message: 'Visit plan deleted successfully' };
 }
 
+async function updateVisit(visitId, status) {
+  try {
+   
+
+    // Update the visit plan status
+    await db.query(
+      'UPDATE MarketerVisitPlans SET status = ?  WHERE id = ?',
+      [status.status, visitId]
+    );
+    await db.query(
+      'UPDATE MarketerVisitPlans SET feedback = ? WHERE id = ?',
+      [status.feedback, visitId]
+    );
+
+    await db.query(
+      'UPDATE MarketerVisitPlans SET visit_date = NOW() WHERE id = ?',
+      [visitId]
+    );
+
+    //udate notes if provided
+    if (status.notes) {
+      await db.query(
+        'UPDATE MarketerVisitPlans SET notes = ? WHERE id = ?',
+        [status.notes, visitId]
+      );
+    }
+
+    return { message: 'Visit plan status updated successfully' };
+  } catch (error) {
+    console.error('Error updating visit plan status:', error);
+    throw new Error('Failed to update visit plan status');
+
+  }
+}
+
+
+
+
+
+
+async function getWeeklyPlan(startDate, endDate) {
+  try {
+    console.log("Service received dates:", startDate, endDate);
+
+    const rows = await db.query(
+      `
+      SELECT 
+        wp.id,
+        wp.plan_date,
+        wp.created_at,
+        wp.created_by,
+        ct.name AS collection_type,
+        s.id AS supplier_id,
+        s.company_name,
+        s.contact_person,
+        s.phone,
+        s.location,
+        s.region_id,
+        s.sector_id
+      FROM WeeklyPlan wp
+      JOIN CollectionType ct ON wp.collection_type_id = ct.id
+      JOIN suppliers s ON wp.supplier_id = s.id
+      WHERE wp.plan_date BETWEEN ? AND ?
+      ORDER BY wp.plan_date ASC, s.company_name ASC;
+      `,
+      [startDate, endDate]
+    );
+console.log("Weekly plan rows:", rows);
+    return rows; // returns array of objects with weekly plan + supplier info
+  } catch (error) {
+    console.error("❌ Error in getWeeklyPlan service:", error);
+    throw error;
+  }
+}
+
+
+
+
+
+
+
+
+
+
 
 module.exports = {
   assignMarketerToSupplier,
@@ -192,5 +278,7 @@ module.exports = {
     getSuppliersByMarketerId,
   saveVisitPlans,
   getMarketerVisitPlans,
-  deleteVisitPlan
+  deleteVisitPlan,
+  updateVisit,
+  getWeeklyPlan
 };

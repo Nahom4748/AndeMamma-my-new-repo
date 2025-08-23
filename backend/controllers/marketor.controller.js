@@ -93,22 +93,34 @@ async function getSuppliersByMarketerId(req, res) {
 
 async function submitMarketerVisitPlan(req, res) {
   try {
-    console.log("Submitting visit plan:", req.body);
-    const { plans } = req.body; // Assuming plans is an array of visit plans
-    if (!plans || !Array.isArray(plans)) {
-      return res.status(400).json({
-        status: 'error',
-        message: 'Visit plans are required',
-      });
+    let plans = req.body;
+
+    console.log("Received visit plans:", plans);
+
+    // Normalize: wrap single object into an array
+    if (!Array.isArray(plans)) {
+      plans = [plans];
     }
 
-    // Call the service to save the visit plans
-    await marketorService.saveVisitPlans(plans); // Assuming you have a service method to save visit plans
+    // Validate
+    for (const [index, plan] of plans.entries()) {
+      const { supplier_id, marketer_id, visit_date, type, status } = plan;
+      if (!supplier_id || !marketer_id || !visit_date || !type || !status) {
+        return res.status(400).json({
+          status: 'error',
+          message: `Missing required fields in plan at index ${index}`,
+        });
+      }
+    }
+
+    // Save
+    await marketorService.saveVisitPlans(plans);
 
     res.status(200).json({
       status: 'success',
-      message: 'Visit plan submitted successfully',
+      message: 'Visit plan(s) submitted successfully',
     });
+
   } catch (error) {
     console.error('Error submitting visit plan:', error);
     res.status(500).json({
@@ -117,6 +129,7 @@ async function submitMarketerVisitPlan(req, res) {
     });
   }
 }
+
 
 async function marketorsVisitPlans(req, res) {
   try {
@@ -159,6 +172,79 @@ async function deletevisiting(req, res) {
   }
 }
 
+// controller
+async function UpdateVisitStatus(req, res) {
+  try {
+    const { visitId } = req.params;
+    const updateData = req.body; // Can contain status, date, notes, etc.
+    console.log("Updating visit status:", visitId, updateData);
+
+    if (!visitId || Object.keys(updateData).length === 0) {
+      return res.status(400).json({
+        status: 'error',
+        message: 'Visit ID and update data are required',
+      });
+    }
+
+    const updatedVisit = await marketorService.updateVisit(visitId, updateData);
+
+    if (!updatedVisit) {
+      return res.status(404).json({
+        status: 'error',
+        message: 'Visit not found',
+      });
+    }
+
+    res.status(200).json({
+      status: 'success',
+      data: updatedVisit,
+    });
+  } catch (error) {
+    console.error('Error updating visit:', error);
+    res.status(500).json({
+      status: 'error',
+      message: error.message || 'Internal server error',
+    });
+  }
+}
+
+async function weeklyplan(req, res) {
+  try {
+    const { start_date, end_date } = req.query;
+
+    // Log incoming parameters
+    console.log("Weekly plan request params:", { start_date, end_date });
+
+    // Validate required params
+    if (!start_date || !end_date) {
+      return res.status(400).json({
+        error: "Both start_date and end_date query parameters are required."
+      });
+    }
+
+    // Call service to fetch weekly plan data
+    const rows = await marketorService.getWeeklyPlan(start_date, end_date);
+
+    // Send JSON response
+    return res.status(200).json({
+      success: true,
+      data: rows,
+    });
+  } catch (error) {
+    console.error("Error retrieving weekly plan:", error);
+    return res.status(500).json({ 
+      success: false,
+      error: "Failed to fetch weekly plan",
+      details: error.message, // optionally expose error message for debugging
+    });
+  }
+}
+
+
+
+
+
+
 module.exports = {
   assignMarketer,
     getMarketerAssignments,
@@ -166,5 +252,7 @@ module.exports = {
     getSuppliersByMarketerId,
   submitMarketerVisitPlan,
   marketorsVisitPlans,
-  deletevisiting
+  deletevisiting,
+  UpdateVisitStatus,
+  weeklyplan
 };

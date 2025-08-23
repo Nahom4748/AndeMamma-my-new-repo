@@ -11,7 +11,7 @@ const port = process.env.PORT || 5000;
 const cors = require('cors');
 
 const corsOptions = {
-  origin: 'http://localhost:5173', // or process.env.FRONTEND_URL if using .env
+  origin: '*', // or process.env.FRONTEND_URL if using .env
   methods: 'GET,HEAD,PUT,PATCH,POST,DELETE',
   credentials: true, // This is the key!
 };

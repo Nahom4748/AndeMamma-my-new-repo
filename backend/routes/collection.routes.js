@@ -18,5 +18,17 @@ router.get("/api/reports/summary", collectionController.reportsummary); // Assum
 router.get("/api/daily-collections", collectionController.dailyCollectionReport); // Assuming this exists
 //get collection repert by papertype 
 router.get("/api/collection/reports/papertype", collectionController.getCollectionReportByPaperType); // Assuming this exists
-// Assuming this exists
+router.get("/api/collection/getWeeklyCollectionData", collectionController.getWeeklyCollectionData); // Assuming this exists
+router.get("/api/getCollectionTypeData", collectionController.getCollectionTypeData); // Assuming this exists
+router.get("/api/getMonthlyTrendData", collectionController.getMonthlyTrendData); // Assuming this exists
+router.get("/api/getDashboardStats", collectionController.getDashboardStats); // Assuming this exists
+router.get("/api/suppliers-stats", collectionController.suppliersstats); // Assuming this exists
+router.get("/api/most-active-days", collectionController.mostactivedays); // Assuming this exists
+// /collection-sessions
+router.post("/collection-sessions",collectionController.createCollectionSession); // Assuming this exists
+router.get("/collection-sessions", collectionController.getCollectionSession); // Assuming this exists
+router.put("/collection-sessions/:sessionId", collectionController.updatesessions); // Assuming this exists
+router.post("/site-evaluation-reports",collectionController.siteevaluationreports)
+router.get("/site-evaluation-reports",collectionController.getAllCostEvaluations)
+router.delete("/site-evaluation-reports/:id",collectionController.siteevaluationdelet)
 module.exports = router;  

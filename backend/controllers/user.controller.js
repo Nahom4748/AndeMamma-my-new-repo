@@ -2,6 +2,7 @@ const userService = require('../services/user.service');
 async function CreateUser(req, res) {
   try {
     const userData = req.body;
+    console.log(userData)
     // Check if email already exists
     const existingUser = await userService.findUserByEmail(userData.email);
     if (existingUser) {
@@ -119,11 +120,55 @@ async function GetMarketors(req, res) {
   }
 }
 
+async function createmamas(req,res){
+try {
+    const mama = await userService.createMammas(req.body);
+    res.json({ status: "success", data: mama });
+    
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+}
+
+
+async function getAllMammas(req, res) {
+  try {
+ 
+    const mamas = await userService.getAllMammas();
+     res.status(200).json({
+      status: 'success',
+      data: mamas,
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+}
+
+async function udateMammas(req, res) {
+  try {
+    const response = await userService.updateMamas(req.params.id, req.body);
+    res.json({ status: "success", data: response });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+}
+
+async function deleteMammas(req, res) {
+  try {
+    await userService.deleteMember(req.params.id);
+  
+        res.json({ status: "success", message: "Mama deleted successfully" });
+
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+}
+
 module.exports = {
   CreateUser,
   Users,
   CompanyRoles,
   UpdateUser,
   DeleteUser,
-  GetMarketors,
+  GetMarketors,createmamas,getAllMammas,udateMammas,deleteMammas
 };

@@ -4,6 +4,7 @@ const supplierService = require('../services/supplier.service');
 async function CreateSupplier(req, res) {
   try {
     const supplierData = req.body;
+    console.log('Supplier Data:', supplierData);
     const newSupplier = await supplierService.createSupplier(supplierData);
     res.status(201).json({
       status: 'success',
@@ -54,6 +55,7 @@ async function UpdateSupplier(req, res) {
   try {
     const supplierId = req.params.id;
     const supplierData = req.body;
+    console.log('Updating Supplier  uuuuuuuuuuuuuuuu ID:', supplierId, 'with Data:', supplierData);
 
     if (!supplierId || !supplierData) {
       return res.status(400).json({

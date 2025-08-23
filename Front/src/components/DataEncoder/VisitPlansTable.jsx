@@ -1,135 +1,111 @@
 import React, { useState, useEffect } from 'react';
-import { 
-  List,
-  Tag,
-  Button,
-  Modal,
-  Form,
-  Select,
-  Input,
-  Badge,
-  Divider,
-  Radio,
-  Typography,
-  message,
-  Popover,
-  Space,
-  Tabs,
-  DatePicker
+import {
+  Tag, Button, Modal, Form, Select, Input, Badge, Divider, Radio, 
+  Typography, message, Popover, Card, DatePicker, Collapse
 } from 'antd';
-import { 
-  CheckCircleOutlined, 
-  CloseCircleOutlined, 
-  SyncOutlined, 
-  FileDoneOutlined, 
-  FieldTimeOutlined,
-  EditOutlined,
-  CalendarOutlined,
-  UserOutlined,
-  EnvironmentOutlined,
-  PhoneOutlined,
-  SearchOutlined,
-  FilterOutlined,
-  MoreOutlined
+import {
+  CheckCircleOutlined, CloseCircleOutlined, SyncOutlined, FileDoneOutlined,
+  FieldTimeOutlined, CalendarOutlined, UserOutlined, EnvironmentOutlined,
+  PhoneOutlined, SearchOutlined, FilterOutlined, MoreOutlined, FileTextOutlined,
+  ClockCircleOutlined, FrownOutlined, MehOutlined, SmileOutlined, StarOutlined,
+  PlusOutlined, CheckOutlined, EditOutlined
 } from '@ant-design/icons';
 import moment from 'moment';
 import axios from 'axios';
+import { motion } from 'framer-motion';
 
 const { Text, Title } = Typography;
 const { Option } = Select;
+const { Panel } = Collapse;
 
 const statusOptions = [
-  { value: 'Pending', label: 'Pending', icon: <FieldTimeOutlined />, color: 'blue' },
-  { value: 'Completed', label: 'Completed', icon: <CheckCircleOutlined />, color: 'green' },
-  { value: 'Cancelled', label: 'Cancelled', icon: <CloseCircleOutlined />, color: 'red' },
-  { value: 'Rescheduled', label: 'Rescheduled', icon: <SyncOutlined />, color: 'orange' },
-  { value: 'Follow-up', label: 'Follow-up', icon: <FileDoneOutlined />, color: 'purple' },
+  { value: 'Pending', label: 'Pending', icon: <FieldTimeOutlined />, color: 'blue', bg: 'bg-blue-100', text: 'text-blue-800' },
+  { value: 'Completed', label: 'Completed', icon: <CheckCircleOutlined />, color: 'green', bg: 'bg-green-100', text: 'text-green-800' },
+  { value: 'Cancelled', label: 'Cancelled', icon: <CloseCircleOutlined />, color: 'red', bg: 'bg-red-100', text: 'text-red-800' },
+  { value: 'Rescheduled', label: 'Rescheduled', icon: <SyncOutlined />, color: 'orange', bg: 'bg-orange-100', text: 'text-orange-800' },
+  { value: 'Follow-up', label: 'Follow-up', icon: <FileDoneOutlined />, color: 'purple', bg: 'bg-purple-100', text: 'text-purple-800' },
 ];
 
 const feedbackOptions = [
-  { value: 'unaware', label: 'Unaware', color: 'gray' },
-  { value: 'against', label: 'Against', color: 'volcano' },
-  { value: 'neutral', label: 'Neutral', color: 'gold' },
-  { value: 'supportive', label: 'Supportive', color: 'green' },
-  { value: 'interested', label: 'Interested', color: 'cyan' },
+  { value: 'unaware', label: 'Unaware', icon: <FrownOutlined />, color: 'gray', bg: 'bg-gray-100', text: 'text-gray-800' },
+  { value: 'against', label: 'Against', icon: <FrownOutlined />, color: 'red', bg: 'bg-red-100', text: 'text-red-800' },
+  { value: 'neutral', label: 'Neutral', icon: <MehOutlined />, color: 'yellow', bg: 'bg-yellow-100', text: 'text-yellow-800' },
+  { value: 'supportive', label: 'Supportive', icon: <SmileOutlined />, color: 'green', bg: 'bg-green-100', text: 'text-green-800' },
+  { value: 'interested', label: 'Interested', icon: <StarOutlined />, color: 'cyan', bg: 'bg-cyan-100', text: 'text-cyan-800' },
+];
+
+const dayOptions = [
+  { value: 'today', label: 'Today' },
+  { value: 'tomorrow', label: 'Tomorrow' },
+  { value: 'this-week', label: 'This Week' },
+  { value: 'next-week', label: 'Next Week' },
 ];
 
 const VisitPlanner = () => {
   const [visits, setVisits] = useState([]);
-  const [filteredVisits, setFilteredVisits] = useState([]);
   const [loading, setLoading] = useState(false);
   const [visible, setVisible] = useState(false);
   const [currentVisit, setCurrentVisit] = useState(null);
   const [form] = Form.useForm();
   const [searchText, setSearchText] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
-  const [selectedDate, setSelectedDate] = useState(moment());
+  const [selectedDayOption, setSelectedDayOption] = useState('today');
 
-  // Group visits by date
-  const groupVisitsByDate = (visits) => {
-    const grouped = {};
-    visits.forEach(visit => {
-      const date = moment(visit.visit_date).format('YYYY-MM-DD');
-      if (!grouped[date]) {
-        grouped[date] = [];
-      }
-      grouped[date].push(visit);
-    });
-    return grouped;
-  };
-
-  // Get dates from today forward
-  const getFutureDates = (visits) => {
-    const dates = Object.keys(groupVisitsByDate(visits))
-      .filter(date => moment(date).isSameOrAfter(moment(), 'day'))
-      .sort((a, b) => moment(a).diff(moment(b)));
-    return dates;
-  };
-
-  useEffect(() => {
-    fetchVisits();
-  }, []);
-
-  useEffect(() => {
-    filterVisits();
-  }, [visits, searchText, statusFilter, selectedDate]);
+  useEffect(() => { fetchVisits(); }, []);
 
   const fetchVisits = async () => {
     setLoading(true);
     try {
       const res = await axios.get('http://localhost:5000/api/marketer-visits');
       setVisits(res.data.data);
-    } catch (err) {
+    } catch {
       message.error('Failed to fetch visits');
     } finally {
       setLoading(false);
     }
   };
 
-  const filterVisits = () => {
-    let result = [...visits];
+  // Filter visits based on selected time period
+  const getFilteredVisits = () => {
+    let filtered = [...visits];
+    
+    // Filter by time period
+    switch(selectedDayOption) {
+      case 'today':
+        filtered = filtered.filter(v => moment(v.visit_date).isSame(moment(), 'day'));
+        break;
+      case 'tomorrow':
+        filtered = filtered.filter(v => moment(v.visit_date).isSame(moment().add(1, 'day'), 'day'));
+        break;
+      case 'this-week':
+        filtered = filtered.filter(v => moment(v.visit_date).isBetween(
+          moment().startOf('week'), moment().endOf('week'), null, '[]'
+        ));
+        break;
+      case 'next-week':
+        filtered = filtered.filter(v => moment(v.visit_date).isBetween(
+          moment().add(1, 'week').startOf('week'), moment().add(1, 'week').endOf('week'), null, '[]'
+        ));
+        break;
+      default:
+        break;
+    }
     
     // Filter by search text
     if (searchText) {
-      result = result.filter(visit => 
-        visit.company_name.toLowerCase().includes(searchText.toLowerCase()) ||
-        visit.contact_person.toLowerCase().includes(searchText.toLowerCase())
+      const search = searchText.toLowerCase();
+      filtered = filtered.filter(v => 
+        v.company_name.toLowerCase().includes(search) || 
+        v.contact_person.toLowerCase().includes(search)
       );
     }
     
     // Filter by status
     if (statusFilter !== 'all') {
-      result = result.filter(visit => visit.status === statusFilter);
+      filtered = filtered.filter(v => v.status === statusFilter);
     }
     
-    // Filter by date
-    if (selectedDate) {
-      result = result.filter(visit => 
-        moment(visit.visit_date).isSame(selectedDate, 'day')
-      );
-    }
-    
-    setFilteredVisits(result);
+    return filtered;
   };
 
   const handleStatusUpdate = async (values) => {
@@ -138,32 +114,17 @@ const VisitPlanner = () => {
       fetchVisits();
       setVisible(false);
       message.success('Visit updated successfully');
-    } catch (err) {
+    } catch {
       message.error('Failed to update visit');
     }
   };
 
-  const getStatusTag = (status) => {
-    const option = statusOptions.find(opt => opt.value === status) || statusOptions[0];
-    return (
-      <Tag 
-        icon={option.icon} 
-        color={option.color}
-        className="flex items-center px-3 py-1 rounded-full"
-      >
-        {option.label}
-      </Tag>
-    );
-  };
-
   const handleQuickStatusChange = async (visitId, newStatus) => {
     try {
-      await axios.put(`http://localhost:5000/api/marketer-visits/${visitId}`, {
-        status: newStatus
-      });
-      message.success(`Status updated to ${newStatus}`);
+      await axios.put(`http://localhost:5000/api/marketer-visits/${visitId}`, { status: newStatus });
       fetchVisits();
-    } catch (err) {
+      message.success(`Status updated to ${newStatus}`);
+    } catch {
       message.error('Failed to update status');
     }
   };
@@ -173,267 +134,350 @@ const VisitPlanner = () => {
       placement="bottomRight"
       trigger="click"
       content={
-        <div className="space-y-2 w-40">
+        <div className="space-y-1 w-36">
           {statusOptions.map(option => (
-            <div
+            <button
               key={option.value}
               onClick={() => handleQuickStatusChange(visit.id, option.value)}
-              className={`flex items-center px-3 py-2 rounded-lg cursor-pointer hover:bg-${option.color}-50`}
+              className={`w-full text-left px-3 py-2 rounded-lg flex items-center ${option.bg} ${option.text} hover:opacity-80 transition-opacity`}
             >
-              <span className={`text-${option.color}-500 mr-2`}>{option.icon}</span>
-              <span className="text-gray-700">{option.label}</span>
-            </div>
+              <span className="mr-2">{option.icon}</span>
+              {option.label}
+            </button>
           ))}
         </div>
       }
     >
-      <Button 
-        type="text" 
-        icon={<MoreOutlined />} 
-        className="text-gray-500 hover:text-blue-500"
-      />
+      <button className="text-gray-500 hover:text-blue-500 p-1 rounded-full">
+        <MoreOutlined />
+      </button>
     </Popover>
   );
 
-  return (
-    <div className="p-4 bg-gray-50 min-h-screen">
-      <div className="bg-white rounded-xl shadow-sm p-6">
-        <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4">
-          <div className="flex items-center">
-            <CalendarOutlined className="text-blue-500 text-2xl mr-3" />
-            <Title level={3} className="m-0 text-gray-800">Supplier Visits</Title>
+  const renderVisitCard = (visit) => {
+    const status = statusOptions.find(s => s.value === visit.status) || statusOptions[0];
+    const feedback = feedbackOptions.find(f => f.value === visit.feedback);
+    
+    return (
+      <motion.div
+        key={visit.id}
+        layout
+        initial={{ opacity: 0, y: 10 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.2 }}
+        whileHover={{ scale: 1.01 }}
+        whileTap={{ scale: 0.98 }}
+        className="bg-white rounded-xl shadow-xs border border-gray-100 overflow-hidden mb-3"
+        onClick={() => {
+          setCurrentVisit(visit);
+          form.setFieldsValue({
+            status: visit.status,
+            feedback: visit.feedback,
+            notes: visit.notes
+          });
+          setVisible(true);
+        }}
+      >
+        <div className="p-4">
+          <div className="flex justify-between items-start">
+            <div>
+              <h3 className="text-sm font-semibold text-gray-900 mb-1">{visit.company_name}</h3>
+              <div className="flex items-center text-xs text-gray-500 mb-1">
+                <UserOutlined className="mr-1" />
+                <span>{visit.contact_person}</span>
+              </div>
+              <div className="flex items-center text-xs text-gray-500">
+                <EnvironmentOutlined className="mr-1" />
+                <span className="truncate max-w-[160px]">{visit.supplier_location}</span>
+              </div>
+            </div>
+            
+            <div className="flex flex-col items-end">
+              <Tag 
+                color={status.color} 
+                className={`${status.bg} ${status.text} text-xs font-medium px-2 py-0.5 rounded-full flex items-center`}
+              >
+                {status.icon}
+                <span className="ml-1">{status.label}</span>
+              </Tag>
+              {feedback && (
+                <Tag 
+                  color={feedback.color} 
+                  className={`${feedback.bg} ${feedback.text} text-xs font-medium px-2 py-0.5 rounded-full mt-1 flex items-center`}
+                >
+                  {feedback.icon}
+                  <span className="ml-1">{feedback.label}</span>
+                </Tag>
+              )}
+            </div>
           </div>
           
-          <div className="flex flex-col sm:flex-row gap-3 w-full md:w-auto">
+          <div className="flex justify-between items-center mt-3 pt-2 border-t border-gray-100">
+            <div className="flex items-center text-xs text-gray-500">
+              <ClockCircleOutlined className="mr-1" />
+              <span>{moment(visit.visit_date).format('h:mm A')}</span>
+            </div>
+            <div className="flex space-x-2">
+              <StatusActions visit={visit} />
+            </div>
+          </div>
+        </div>
+        
+        {visit.notes && (
+          <Collapse ghost className="border-t border-gray-100">
+            <Panel 
+              header={
+                <div className="flex items-center text-xs text-blue-600 font-medium px-4 py-2">
+                  <FileTextOutlined className="mr-2" />
+                  View Notes
+                </div>
+              } 
+              key="1"
+            >
+              <div className="px-4 pb-3 text-xs text-gray-600">{visit.notes}</div>
+            </Panel>
+          </Collapse>
+        )}
+      </motion.div>
+    );
+  };
+
+  const filteredVisits = getFilteredVisits();
+
+  // Calculate counts for each time period
+  const todayVisits = visits.filter(v => moment(v.visit_date).isSame(moment(), 'day'));
+  const tomorrowVisits = visits.filter(v => moment(v.visit_date).isSame(moment().add(1, 'day'), 'day'));
+  const thisWeekVisits = visits.filter(v => moment(v.visit_date).isBetween(
+    moment().startOf('week'), moment().endOf('week'), null, '[]'
+  ));
+  const nextWeekVisits = visits.filter(v => moment(v.visit_date).isBetween(
+    moment().add(1, 'week').startOf('week'), moment().add(1, 'week').endOf('week'), null, '[]'
+  ));
+  const pendingVisits = visits.filter(v => v.status === 'Pending');
+
+  return (
+    <div className="min-h-screen bg-gray-50 p-4">
+      <div className="max-w-md mx-auto">
+        {/* Header */}
+        <div className="mb-5">
+          <div className="flex items-center mb-4">
+            <div className="bg-gradient-to-r from-blue-500 to-blue-600 p-2 rounded-xl shadow-sm mr-3">
+              <CalendarOutlined className="text-white text-lg" />
+            </div>
+            <div>
+              <p className="text-xs font-medium text-gray-500 uppercase tracking-wider">Supplier Visits</p>
+              <h1 className="text-xl font-bold text-gray-800">Visit Planner</h1>
+            </div>
+          </div>
+          
+          <div className="flex space-x-2 mb-3">
             <Input
-              placeholder="Search suppliers..."
+              placeholder="Search..."
               prefix={<SearchOutlined className="text-gray-400" />}
               value={searchText}
-              onChange={(e) => setSearchText(e.target.value)}
-              className="w-full md:w-64 rounded-lg border-gray-300 hover:border-blue-400 focus:border-blue-500"
+              onChange={e => setSearchText(e.target.value)}
+              className="rounded-lg"
               allowClear
+              size="small"
             />
-            
             <Select
               value={statusFilter}
               onChange={setStatusFilter}
-              className="w-full sm:w-40 rounded-lg"
+              className="rounded-lg min-w-[120px]"
               suffixIcon={<FilterOutlined className="text-gray-400" />}
+              size="small"
             >
-              <Option value="all">All Statuses</Option>
-              {statusOptions.map(option => (
-                <Option key={option.value} value={option.value}>
+              <Option value="all">All Status</Option>
+              {statusOptions.map(opt => (
+                <Option key={opt.value} value={opt.value}>
                   <div className="flex items-center">
-                    <span className={`text-${option.color}-500 mr-2`}>{option.icon}</span>
-                    {option.label}
+                    <span className={`${opt.text} mr-2`}>{opt.icon}</span>
+                    {opt.label}
                   </div>
                 </Option>
               ))}
             </Select>
-            
-            <DatePicker
-              value={selectedDate}
-              onChange={setSelectedDate}
-              className="w-full sm:w-40 rounded-lg"
-              suffixIcon={<CalendarOutlined className="text-gray-400" />}
-              disabledDate={(current) => current && current < moment().startOf('day')}
-            />
           </div>
         </div>
 
-        <div className="mb-4">
-          <Text strong className="text-lg text-gray-700">
-            {selectedDate.format('dddd, MMMM D, YYYY')}
-          </Text>
-          <Badge 
-            count={filteredVisits.length} 
-            className="ml-2 bg-blue-500"
-          />
+        {/* Stats Cards */}
+        <div className="grid grid-cols-2 gap-3 mb-4">
+          {[
+            { title: "Today", count: todayVisits.length, icon: <ClockCircleOutlined />, color: 'bg-blue-100', text: 'text-blue-800' },
+            { title: "Tomorrow", count: tomorrowVisits.length, icon: <CalendarOutlined />, color: 'bg-purple-100', text: 'text-purple-800' },
+            { title: "This Week", count: thisWeekVisits.length, icon: <CalendarOutlined />, color: 'bg-green-100', text: 'text-green-800' },
+            { title: "Pending", count: pendingVisits.length, icon: <FieldTimeOutlined />, color: 'bg-orange-100', text: 'text-orange-800' },
+          ].map((stat, index) => (
+            <div key={index} className={`${stat.color} ${stat.text} rounded-xl p-3 shadow-xs`}>
+              <div className="flex justify-between items-center">
+                <div>
+                  <p className="text-xs font-medium">{stat.title}</p>
+                  <p className="text-lg font-bold">{stat.count}</p>
+                </div>
+                <div className="p-2 rounded-lg bg-white/50">
+                  {stat.icon}
+                </div>
+              </div>
+            </div>
+          ))}
         </div>
 
-        {filteredVisits.length > 0 ? (
-          <List
-            itemLayout="vertical"
-            dataSource={filteredVisits}
-            renderItem={(visit) => (
-              <List.Item
-                className="hover:bg-gray-50 px-4 py-3 rounded-lg cursor-pointer"
-                onClick={() => {
-                  setCurrentVisit(visit);
-                  form.setFieldsValue({
-                    status: visit.status,
-                    feedback: visit.feedback,
-                    notes: visit.notes
-                  });
-                  setVisible(true);
-                }}
-                extra={
-                  <div className="flex items-center space-x-2">
-                    {getStatusTag(visit.status)}
-                    <StatusActions visit={visit} />
-                  </div>
-                }
+        {/* Day Selector */}
+        <div className="flex space-x-2 overflow-x-auto pb-2 mb-4 scrollbar-hide">
+          {dayOptions.map(option => {
+            const count = option.value === 'today' ? todayVisits.length :
+                          option.value === 'tomorrow' ? tomorrowVisits.length :
+                          option.value === 'this-week' ? thisWeekVisits.length :
+                          nextWeekVisits.length;
+            
+            return (
+              <button
+                key={option.value}
+                onClick={() => setSelectedDayOption(option.value)}
+                className={`shrink-0 px-3 py-1.5 text-xs font-medium rounded-full transition-colors flex items-center ${
+                  selectedDayOption === option.value 
+                    ? 'bg-blue-500 text-white shadow-sm' 
+                    : 'bg-white text-gray-700 border border-gray-200 hover:bg-gray-50'
+                }`}
               >
-                <List.Item.Meta
-                  title={<Text strong className="text-gray-800">{visit.company_name}</Text>}
-                  description={
-                    <div className="space-y-1">
-                      <div className="flex items-center text-gray-600">
-                        <UserOutlined className="mr-2" />
-                        <Text>{visit.contact_person}</Text>
-                      </div>
-                      <div className="flex items-center text-gray-600">
-                        <PhoneOutlined className="mr-2" />
-                        <Text>{visit.supplier_phone}</Text>
-                      </div>
-                      <div className="flex items-center text-gray-600">
-                        <EnvironmentOutlined className="mr-2" />
-                        <Text>{visit.supplier_location}</Text>
-                      </div>
-                      {visit.notes && (
-                        <div className="mt-2">
-                          <Text className="text-gray-600" ellipsis>
-                            <strong>Notes:</strong> {visit.notes}
-                          </Text>
-                        </div>
-                      )}
-                    </div>
-                  }
-                />
-              </List.Item>
-            )}
-          />
+                {option.label}
+                {count > 0 && (
+                  <span className={`ml-1 px-1.5 py-0.5 rounded-full text-xs ${
+                    selectedDayOption === option.value 
+                      ? 'bg-white/20' 
+                      : 'bg-gray-100 text-gray-600'
+                  }`}>
+                    {count}
+                  </span>
+                )}
+              </button>
+            );
+          })}
+        </div>
+
+        {/* Visits List Header */}
+        <div className="flex justify-between items-center mb-3">
+          <h2 className="text-sm font-semibold text-gray-700">
+            {selectedDayOption === 'today' && `Today, ${moment().format('MMM D')}`}
+            {selectedDayOption === 'tomorrow' && `Tomorrow, ${moment().add(1, 'day').format('MMM D')}`}
+            {selectedDayOption === 'this-week' && `This Week, ${moment().startOf('week').format('MMM D')}-${moment().endOf('week').format('MMM D')}`}
+            {selectedDayOption === 'next-week' && `Next Week, ${moment().add(1, 'week').startOf('week').format('MMM D')}-${moment().add(1, 'week').endOf('week').format('MMM D')}`}
+          </h2>
+          <span className="text-xs text-gray-500">{filteredVisits.length} visits</span>
+        </div>
+
+        {/* Visits List */}
+        {filteredVisits.length > 0 ? (
+          <motion.div layout className="space-y-3">
+            {filteredVisits.map(visit => renderVisitCard(visit))}
+          </motion.div>
         ) : (
-          <div className="text-center py-12">
-            <div className="text-gray-300 mb-4">
-              <CalendarOutlined className="text-4xl" />
-            </div>
-            <Text className="text-gray-500 text-lg">
-              No visits scheduled for this day
-            </Text>
+          <div className="bg-white rounded-xl p-8 text-center border border-gray-200">
+            <CalendarOutlined className="text-3xl text-gray-300 mb-2" />
+            <p className="text-gray-500 text-sm">No visits scheduled</p>
+            <button className="mt-3 text-xs text-blue-600 font-medium flex items-center justify-center mx-auto">
+              <PlusOutlined className="mr-1" />
+              Schedule a visit
+            </button>
           </div>
         )}
       </div>
 
-      {/* Modern Modal */}
+      {/* Visit Details Modal */}
       <Modal
-        title={<span className="text-xl font-semibold text-gray-800">Update Visit Details</span>}
-        visible={visible}
+        title={null}
+        open={visible}
         onCancel={() => setVisible(false)}
         footer={null}
-        width={700}
         centered
-        className="rounded-xl"
-        bodyStyle={{ padding: 0 }}
+        className="bottom-sheet-modal"
+        width="100%"
+        style={{ maxWidth: '420px' }}
+        styles={{ body: { padding: 0 } }}
       >
         {currentVisit && (
-          <div className="p-6">
-            <div className="mb-6">
-              <Title level={4} className="mb-2">{currentVisit.company_name}</Title>
-              
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-                <div className="bg-gray-50 p-3 rounded-lg">
-                  <Text strong className="block text-gray-500 mb-1">Contact</Text>
-                  <Text>{currentVisit.contact_person}</Text>
-                </div>
-                <div className="bg-gray-50 p-3 rounded-lg">
-                  <Text strong className="block text-gray-500 mb-1">Phone</Text>
-                  <Text>{currentVisit.supplier_phone}</Text>
-                </div>
-                <div className="bg-gray-50 p-3 rounded-lg">
-                  <Text strong className="block text-gray-500 mb-1">Date & Time</Text>
-                  <Text>{moment(currentVisit.visit_date).format('MMMM D, YYYY h:mm A')}</Text>
-                </div>
-                <div className="bg-gray-50 p-3 rounded-lg">
-                  <Text strong className="block text-gray-500 mb-1">Location</Text>
-                  <Text>{currentVisit.supplier_location}</Text>
-                </div>
-              </div>
+          <div>
+            <div className="sticky top-0 bg-white px-4 py-3 border-b border-gray-200 flex items-center justify-between z-10">
+              <h3 className="font-semibold text-gray-800">Update Visit</h3>
+              <button onClick={() => setVisible(false)} className="text-gray-400 hover:text-gray-600">
+                <CloseCircleOutlined />
+              </button>
             </div>
+            
+            <div className="p-4">
+              <div className="mb-4">
+                <h3 className="font-semibold text-gray-800">{currentVisit.company_name}</h3>
+                <p className="text-sm text-gray-500">{currentVisit.contact_person}</p>
+                <div className="flex items-center text-xs text-gray-500 mt-1">
+                  <ClockCircleOutlined className="mr-1" />
+                  <span>{moment(currentVisit.visit_date).format('MMM D, h:mm A')}</span>
+                </div>
+              </div>
+              
+              <Form form={form} layout="vertical" onFinish={handleStatusUpdate}>
+                <Form.Item label="Status" name="status" className="mb-4">
+                  <Radio.Group className="grid grid-cols-2 gap-2">
+                    {statusOptions.map(option => (
+                      <Radio.Button 
+                        key={option.value} 
+                        value={option.value}
+                        className={`flex items-center justify-center py-2 text-xs rounded-lg ${
+                          form.getFieldValue('status') === option.value
+                            ? `${option.bg} ${option.text} border-${option.color}-300`
+                            : 'bg-gray-50 text-gray-700 border-gray-200'
+                        }`}
+                      >
+                        {option.icon}
+                        <span className="ml-2">{option.label}</span>
+                      </Radio.Button>
+                    ))}
+                  </Radio.Group>
+                </Form.Item>
 
-            <Form
-              form={form}
-              layout="vertical"
-              onFinish={handleStatusUpdate}
-            >
-              <div className="space-y-6">
-                <div>
-                  <h4 className="text-md font-medium text-gray-700 mb-3">Visit Status</h4>
-                  <Form.Item
-                    name="status"
-                    rules={[{ required: true, message: 'Please select status' }]}
+                <Form.Item label="Feedback" name="feedback" className="mb-4">
+                  <Radio.Group className="grid grid-cols-2 gap-2">
+                    {feedbackOptions.map(option => (
+                      <Radio.Button 
+                        key={option.value} 
+                        value={option.value}
+                        className={`flex items-center justify-center py-2 text-xs rounded-lg ${
+                          form.getFieldValue('feedback') === option.value
+                            ? `${option.bg} ${option.text} border-${option.color}-300`
+                            : 'bg-gray-50 text-gray-700 border-gray-200'
+                        }`}
+                      >
+                        {option.icon}
+                        <span className="ml-2">{option.label}</span>
+                      </Radio.Button>
+                    ))}
+                  </Radio.Group>
+                </Form.Item>
+
+                <Form.Item label="Notes" name="notes" className="mb-4">
+                  <Input.TextArea 
+                    rows={3} 
+                    className="rounded-lg border-gray-200" 
+                    placeholder="Add notes about the visit..."
+                  />
+                </Form.Item>
+
+                <div className="flex space-x-3">
+                  <Button 
+                    onClick={() => setVisible(false)} 
+                    className="flex-1 rounded-lg border-gray-300 text-gray-700"
                   >
-                    <Radio.Group className="grid grid-cols-2 md:grid-cols-3 gap-3">
-                      {statusOptions.map(option => (
-                        <Radio.Button 
-                          key={option.value} 
-                          value={option.value}
-                          className={`flex items-center justify-center p-3 rounded-lg border-2 hover:border-${option.color}-300`}
-                          style={{ 
-                            borderColor: option.color === 'blue' ? '#93c5fd' : 
-                                        option.color === 'green' ? '#86efac' : 
-                                        option.color === 'red' ? '#fca5a5' : 
-                                        option.color === 'orange' ? '#fdba74' : '#d8b4fe'
-                          }}
-                        >
-                          <span className={`text-${option.color}-500 mr-2`}>
-                            {option.icon}
-                          </span>
-                          <span>{option.label}</span>
-                        </Radio.Button>
-                      ))}
-                    </Radio.Group>
-                  </Form.Item>
+                    Cancel
+                  </Button>
+                  <Button 
+                    type="primary" 
+                    htmlType="submit" 
+                    className="flex-1 rounded-lg bg-blue-500 border-none shadow-none"
+                  >
+                    Save Changes
+                  </Button>
                 </div>
-
-                <div>
-                  <h4 className="text-md font-medium text-gray-700 mb-3">Supplier Feedback</h4>
-                  <Form.Item name="feedback">
-                    <Select
-                      placeholder="Select feedback"
-                      className="w-full rounded-lg"
-                      options={feedbackOptions.map(f => ({
-                        value: f.value,
-                        label: (
-                          <Tag color={f.color} className="px-2 py-1 rounded-full">
-                            {f.label}
-                          </Tag>
-                        )
-                      }))}
-                    />
-                  </Form.Item>
-                </div>
-
-                <div>
-                  <h4 className="text-md font-medium text-gray-700 mb-3">Visit Notes</h4>
-                  <Form.Item name="notes">
-                    <Input.TextArea 
-                      rows={4} 
-                      placeholder="Enter any additional notes about the visit..."
-                      className="rounded-lg border-gray-300 hover:border-blue-400 focus:border-blue-500"
-                    />
-                  </Form.Item>
-                </div>
-              </div>
-
-              <Divider className="my-6" />
-
-              <div className="flex justify-end gap-3">
-                <Button 
-                  onClick={() => setVisible(false)}
-                  className="h-10 px-6 rounded-lg border border-gray-300 text-gray-700 hover:bg-gray-50"
-                >
-                  Cancel
-                </Button>
-                <Button 
-                  type="primary" 
-                  htmlType="submit" 
-                  className="h-10 px-6 rounded-lg bg-blue-500 hover:bg-blue-600 border-0 shadow-sm"
-                >
-                  Update Visit
-                </Button>
-              </div>
-            </Form>
+              </Form>
+            </div>
           </div>
         )}
       </Modal>

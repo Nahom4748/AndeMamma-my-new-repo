@@ -16,7 +16,9 @@ import {
   ConfigProvider,
   Tag,
   Modal,
-  DatePicker
+  Steps,
+  Descriptions,
+  Radio
 } from "antd";
 import {
   CalendarOutlined,
@@ -32,7 +34,11 @@ import {
   EnvironmentOutlined,
   DeleteOutlined,
   ExclamationCircleFilled,
-  FieldTimeOutlined,
+  CheckOutlined,
+  CloseCircleOutlined,
+  SyncOutlined,
+  FileDoneOutlined,
+  FieldTimeOutlined
 } from "@ant-design/icons";
 import axios from "axios";
 import moment from "moment";
@@ -41,9 +47,10 @@ import { motion } from "framer-motion";
 const { Option } = Select;
 const { TabPane } = Tabs;
 const { Text, Title } = Typography;
+const { Step } = Steps;
 const { confirm } = Modal;
 
-const daysOfWeek = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+const daysOfWeek = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
 const visitTypes = [
   { value: 'sourcing', label: 'Sourcing', color: 'bg-emerald-500', icon: '🛒' },
@@ -52,20 +59,49 @@ const visitTypes = [
   { value: 'followup', label: 'Follow-up', color: 'bg-amber-500', icon: '🔄' },
 ];
 
+const feedbackOptions = [
+  { value: 'unaware', label: 'Unaware', icon: '❓', color: 'bg-gray-400' },
+  { value: 'against', label: 'Against', icon: '👎', color: 'bg-red-400' },
+  { value: 'neutral', label: 'Neutral', icon: '✋', color: 'bg-yellow-400' },
+  { value: 'supportive', label: 'Supportive', icon: '👍', color: 'bg-green-400' },
+  { value: 'interested', label: 'Interested', icon: '💡', color: 'bg-blue-400' },
+  { value: 'rejected', label: 'Rejected', icon: '🚫', color: 'bg-red-500' },
+];
+
+const resultOptions = [
+  { value: 'followup_letter', label: 'Letter Submitted for Follow-up' },
+  { value: 'permit_collected', label: 'Permit Collected' },
+  { value: 'site_visited', label: 'Site Visited' },
+  { value: 'followup_required', label: 'Follow-up Visit Required' },
+  { value: 'outlet_visited', label: 'Outlet Visited' },
+  { value: 'other', label: 'Other Result' },
+];
+
+const statusOptions = [
+  { label: 'Planned', value: 'planned', icon: <FieldTimeOutlined />, color: 'bg-blue-400' },
+  { label: 'Completed', value: 'completed', icon: <CheckOutlined />, color: 'bg-green-400' },
+  { label: 'Cancelled', value: 'cancelled', icon: <CloseCircleOutlined />, color: 'bg-red-400' },
+  { label: 'Rescheduled', value: 'rescheduled', icon: <SyncOutlined />, color: 'bg-amber-400' },
+  { label: 'Follow-up', value: 'followup', icon: <FileDoneOutlined />, color: 'bg-indigo-400' },
+];
+
 const MarketerVisitPlan = () => {
   const [suppliers, setSuppliers] = useState([]);
   const [visitPlans, setVisitPlans] = useState({});
   const [loading, setLoading] = useState(false);
   const [currentWeekStart, setCurrentWeekStart] = useState(
-    moment().startOf('week')
+    moment().startOf('week').add(1, 'day')
   );
   const [search, setSearch] = useState("");
   const [activeTab, setActiveTab] = useState(
-    moment().day() === 0 ? "6" : moment().day().toString()
+    moment().day() === 0 ? "0" : Math.max(0, moment().day() - 1).toString()
   );
   const [drawerVisible, setDrawerVisible] = useState(false);
+  const [statusModalVisible, setStatusModalVisible] = useState(false);
   const [selectedDate, setSelectedDate] = useState(null);
-  const [form] = Form.useForm()
+  const [selectedVisit, setSelectedVisit] = useState(null);
+  const [form] = Form.useForm();
+  const [statusForm] = Form.useForm();
 
   useEffect(() => {
     fetchSuppliers();
@@ -86,7 +122,7 @@ const MarketerVisitPlan = () => {
       const res = await axios.get("http://localhost:5000/api/marketer-visits", {
         params: {
           start_date: currentWeekStart.format("YYYY-MM-DD"),
-          end_date: currentWeekStart.clone().add(6, 'days').format("YYYY-MM-DD")
+          end_date: currentWeekStart.clone().add(5, 'days').format("YYYY-MM-DD")
         }
       });
       
@@ -97,12 +133,9 @@ const MarketerVisitPlan = () => {
           plans[dateStr] = [];
         }
         plans[dateStr].push({
+          ...plan,
           supplierId: plan.supplier_id,
-          type: plan.type,
           notes: plan.details,
-          id: plan.id,
-          status: plan.status,
-          feedback: plan.feedback
         });
       });
       setVisitPlans(plans);
@@ -125,46 +158,72 @@ const MarketerVisitPlan = () => {
     setDrawerVisible(true);
   };
 
+  const showStatusModal = (visit) => {
+    setSelectedVisit(visit);
+    statusForm.setFieldsValue({
+      status: visit.status || 'planned',
+      feedback: visit.feedback,
+      result: visit.result,
+      additional_notes: visit.additional_notes
+    });
+    setStatusModalVisible(true);
+  };
+
   const onClose = () => {
     setDrawerVisible(false);
   };
 
-  const handleAddVisit = async (values) => {
+  const onStatusModalClose = () => {
+    setStatusModalVisible(false);
+  };
+
+  const handleAddVisit = (values) => {
     const dateStr = selectedDate.format("YYYY-MM-DD");
     const newPlan = { 
       supplierId: values.supplier, 
       type: values.type,
       notes: values.notes,
       id: Date.now(),
-      status: 'Pending',
-      feedback: null
+      status: 'planned'
     };
     
-    try {
-      // Save to database immediately
-      const response = await axios.post("http://localhost:5000/api/marketer-visits", {
-        visit_date: dateStr,
-        supplier_id: values.supplier,
-        type: values.type,
-        details: values.notes,
-        marketer_id: 2,
-        status: 'Pending'
-      });
+    setVisitPlans(prev => ({
+      ...prev,
+      [dateStr]: [...(prev[dateStr] || []), newPlan]
+    }));
+    
+    message.success('Visit added successfully!');
+    onClose();
+  };
 
-      // Update local state with the database ID
+  const handleStatusUpdate = async (values) => {
+    try {
+      const updatedVisit = {
+        ...selectedVisit,
+        status: values.status,
+        feedback: values.feedback,
+        result: values.result,
+        additional_notes: values.additional_notes,
+        completed_at: values.status === 'completed' ? moment().format() : null
+      };
+
+      // Update in local state first for immediate UI feedback
+      const dateStr = moment(selectedVisit.visit_date).format("YYYY-MM-DD");
       setVisitPlans(prev => ({
         ...prev,
-        [dateStr]: [...(prev[dateStr] || []), {
-          ...newPlan,
-          id: response.data.id
-        }]
+        [dateStr]: prev[dateStr].map(v => 
+          v.id === selectedVisit.id ? updatedVisit : v
+        )
       }));
+
+      // API call to update in backend
+      await axios.put(`http://localhost:5000/api/marketer-visits/${selectedVisit.id}`, updatedVisit);
       
-      message.success('Visit added successfully!');
-      onClose();
+      message.success('Visit status updated successfully!');
+      onStatusModalClose();
     } catch (err) {
-      message.error('Failed to save visit');
-      console.error('Error saving visit:', err);
+      message.error('Failed to update visit status');
+      console.error('Error updating visit:', err);
     }
   };
 
@@ -184,43 +243,57 @@ const MarketerVisitPlan = () => {
 
   const handleRemoveVisit = async (dateStr, visitId) => {
     try {
-      await axios.delete(`http://localhost:5000/api/marketer-visits/${visitId}`);
-      setVisitPlans(prev => {
-        const updatedPlans = { ...prev };
-        updatedPlans[dateStr] = updatedPlans[dateStr].filter(v => v.id !== visitId);
-        return updatedPlans;
-      });
-      message.success('Visit deleted successfully');
+      if (typeof visitId === 'number' && visitId > 10000000000) {
+        setVisitPlans(prev => {
+          const updatedPlans = { ...prev };
+          updatedPlans[dateStr] = updatedPlans[dateStr].filter(v => v.id !== visitId);
+          return updatedPlans;
+        });
+        message.success('Visit removed successfully');
+      } else {
+        await axios.delete(`http://localhost:5000/api/marketer-visits/${visitId}`);
+        setVisitPlans(prev => {
+          const updatedPlans = { ...prev };
+          updatedPlans[dateStr] = updatedPlans[dateStr].filter(v => v.id !== visitId);
+          return updatedPlans;
+        });
+        message.success('Visit deleted successfully');
+      }
     } catch (err) {
       message.error('Failed to delete visit');
-      console.error('Error deleting visit:', err);
     }
   };
 
-  const handleStatusChange = async (dateStr, visitId, newStatus) => {
+  const handleSubmit = async () => {
+    setLoading(true);
     try {
-      await axios.put(`http://localhost:5000/api/marketer-visits/${visitId}`, {
-        status: newStatus
-      });
-      setVisitPlans(prev => {
-        const updatedPlans = { ...prev };
-        updatedPlans[dateStr] = updatedPlans[dateStr].map(v => 
-          v.id === visitId ? { ...v, status: newStatus } : v
-        );
-        return updatedPlans;
-      });
-      message.success(`Status updated to ${newStatus}`);
+      const plans = Object.entries(visitPlans).flatMap(([date, entries]) =>
+        entries.filter(e => !moment(date).isBefore(moment().startOf('day')))
+          .map(e => ({
+            visit_date: date,
+            supplier_id: e.supplierId,
+            type: e.type,
+            details: e.notes,
+            marketer_id: 2,
+            status: e.status || 'planned'
+          }))
+      );
+
+      await axios.post("http://localhost:5000/api/marketer-visits", { plans });
+      message.success("Visit plan submitted successfully!");
+      fetchExistingPlans();
     } catch (err) {
-      message.error('Failed to update status');
-      console.error('Error updating status:', err);
+      message.error("Failed to submit visit plan.");
+    } finally {
+      setLoading(false);
     }
   };
 
   const handleWeekChange = (dir) => {
     const newWeek = currentWeekStart.clone().add(dir * 7, "days");
-    if (newWeek.isSameOrAfter(moment().startOf('week'), 'day')) {
+    if (newWeek.isSameOrAfter(moment().startOf('week').add(1, 'day'), 'day')) {
       setCurrentWeekStart(newWeek);
-      setActiveTab(moment().day().toString());
+      setActiveTab("0");
     } else {
       message.warning("You can only plan for current or future weeks");
     }
@@ -232,23 +305,13 @@ const MarketerVisitPlan = () => {
     .sort((a, b) => a.company_name.localeCompare(b.company_name));
 
   const getStatusTag = (status) => {
-    const statusMap = {
-      'Pending': { color: 'blue', icon: <FieldTimeOutlined /> },
-      'Completed': { color: 'green', icon: <CheckCircleOutlined /> },
-      'Cancelled': { color: 'red', icon: <CloseOutlined /> },
-      'Rescheduled': { color: 'orange', icon: <SyncOutlined /> },
-      'Follow-up': { color: 'purple', icon: <FileTextOutlined /> }
-    };
-    
-    const config = statusMap[status] || statusMap['Pending'];
-    
+    const option = statusOptions.find(opt => opt.value === status) || statusOptions[0];
     return (
       <Tag 
-        icon={config.icon} 
-        color={config.color}
-        className="flex items-center px-2 py-0.5 rounded-full text-xs"
+        icon={option.icon} 
+        className={`${option.color} text-white flex items-center px-2 py-0.5`}
       >
-        {status}
+        {option.label}
       </Tag>
     );
   };
@@ -282,7 +345,7 @@ const MarketerVisitPlan = () => {
                 <div>
                   <Title level={3} className="m-0 text-gray-800 font-semibold">Weekly Schedule</Title>
                   <Text className="text-xs md:text-sm text-gray-500">
-                    {weekDates[0].format("MMM D")} - {weekDates[6].format("MMM D, YYYY")}
+                    {weekDates[0].format("MMM D")} - {weekDates[5].format("MMM D, YYYY")}
                   </Text>
                 </div>
               </div>
@@ -298,6 +361,16 @@ const MarketerVisitPlan = () => {
                   className="w-full sm:w-48 md:w-56 rounded-lg h-10 text-sm"
                 />
               </Popover>
+              <Button
+                type="primary"
+                loading={loading}
+                icon={<CheckCircleOutlined />}
+                onClick={handleSubmit}
+                className="bg-gradient-to-r from-emerald-500 to-emerald-600 hover:from-emerald-600 hover:to-emerald-700 border-0 h-10 rounded-lg shadow-sm w-full sm:w-auto text-sm"
+              >
+                <span className="hidden sm:inline">Submit Plan</span>
+                <span className="sm:hidden">Submit</span>
+              </Button>
             </div>
           </div>
 
@@ -305,7 +378,7 @@ const MarketerVisitPlan = () => {
           <div className="flex items-center justify-between mt-4 md:mt-6 bg-gradient-to-r from-emerald-50 to-emerald-100 p-3 rounded-xl border border-emerald-100">
             <Button 
               onClick={() => handleWeekChange(-1)}
-              disabled={currentWeekStart.isSame(moment().startOf('week'), 'week')}
+              disabled={currentWeekStart.isSame(moment().startOf('week').add(1, 'day'), 'week')}
               className="flex items-center rounded-lg h-9 text-xs sm:text-sm"
               icon={<ArrowLeftOutlined className="text-xs" />}
             >
@@ -392,16 +465,23 @@ const MarketerVisitPlan = () => {
                           return (
                             <div 
                               key={entry.id}
-                              className={`p-3 sm:p-4 rounded-xl border ${isPast ? 'border-gray-200' : 'border-gray-200 hover:border-emerald-100'} transition-colors ${isPast ? 'opacity-75 bg-gray-50' : 'bg-white'}`}
+                              className={`p-3 sm:p-4 rounded-xl border border-gray-200 hover:border-emerald-100 transition-colors ${isPast ? 'opacity-75 bg-gray-50' : 'bg-white'}`}
+                              onClick={() => showStatusModal(entry)}
                             >
                               <div className="flex justify-between items-start">
                                 <div className="flex items-start gap-3 flex-1 min-w-0">
-                                  <div className="flex-shrink-0">
-                                    {getStatusTag(entry.status)}
-                                  </div>
+                                  <Avatar
+                                    src={`https://ui-avatars.com/api/?name=${supplier?.company_name}&background=10b981&color=fff`}
+                                    size={40}
+                                    icon={<UserOutlined />}
+                                    className="flex-shrink-0"
+                                  />
                                   <div className="min-w-0 flex-1">
-                                    <div className="font-medium text-gray-800 truncate text-sm sm:text-base">
-                                      {supplier?.company_name}
+                                    <div className="flex justify-between items-start">
+                                      <div className="font-medium text-gray-800 truncate text-sm sm:text-base">
+                                        {supplier?.company_name}
+                                      </div>
+                                      {getStatusTag(entry.status || 'planned')}
                                     </div>
                                     <div className="flex flex-wrap items-center gap-1.5 mt-1">
                                       {visitType && (
@@ -429,41 +509,26 @@ const MarketerVisitPlan = () => {
                                         </Text>
                                       </div>
                                     )}
+                                    {entry.feedback && (
+                                      <div className="mt-2">
+                                        <Tag className={`${feedbackOptions.find(f => f.value === entry.feedback)?.color || 'bg-gray-200'} text-white text-xs`}>
+                                          Feedback: {feedbackOptions.find(f => f.value === entry.feedback)?.label}
+                                        </Tag>
+                                      </div>
+                                    )}
                                   </div>
                                 </div>
                                 {isEditable && (
-                                  <div className="flex flex-col items-end">
-                                    <Popover
-                                      placement="bottomRight"
-                                      trigger="click"
-                                      content={
-                                        <div className="space-y-2 w-40">
-                                          {['Pending', 'Completed', 'Cancelled', 'Rescheduled', 'Follow-up'].map(status => (
-                                            <div
-                                              key={status}
-                                              onClick={() => handleStatusChange(dateStr, entry.id, status)}
-                                              className={`flex items-center px-3 py-2 rounded-lg cursor-pointer hover:bg-gray-50 ${entry.status === status ? 'bg-gray-100' : ''}`}
-                                            >
-                                              {getStatusTag(status)}
-                                            </div>
-                                          ))}
-                                        </div>
-                                      }
-                                    >
-                                      <Button 
-                                        type="text" 
-                                        icon={<MoreOutlined />} 
-                                        className="text-gray-500 hover:text-blue-500"
-                                      />
-                                    </Popover>
-                                    <button
-                                      onClick={() => showDeleteConfirm(dateStr, entry.id)}
-                                      className="text-gray-400 hover:text-red-500 mt-2"
-                                      aria-label="Delete visit"
-                                    >
-                                      <DeleteOutlined className="text-xs sm:text-sm" />
-                                    </button>
-                                  </div>
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      showDeleteConfirm(dateStr, entry.id);
+                                    }}
+                                    className="text-gray-400 hover:text-red-500 ml-1"
+                                    aria-label="Delete visit"
+                                  >
+                                    <DeleteOutlined className="text-xs sm:text-sm" />
+                                  </button>
                                 )}
                               </div>
                             </div>
@@ -633,6 +698,130 @@ const MarketerVisitPlan = () => {
             </Form.Item>
           </Form>
         </Drawer>
+
+        {/* Visit Status Modal */}
+        <Modal
+          title="Update Visit Status"
+          open={statusModalVisible}
+          onCancel={onStatusModalClose}
+          footer={null}
+          width={Math.min(window.innerWidth * 0.9, 600)}
+          centered
+          className="rounded-xl"
+        >
+          {selectedVisit && (
+            <Form
+              form={statusForm}
+              layout="vertical"
+              onFinish={handleStatusUpdate}
+              initialValues={{
+                status: selectedVisit.status || 'planned'
+              }}
+            >
+              <div className="p-4">
+                <div className="mb-6">
+                  <Steps current={statusOptions.findIndex(opt => opt.value === (selectedVisit.status || 'planned'))} size="small">
+                    {statusOptions.map(opt => (
+                      <Step key={opt.value} title={opt.label} />
+                    ))}
+                  </Steps>
+                </div>
+
+                <div className="mb-6">
+                  <Descriptions column={1} size="small" className="visit-details">
+                    <Descriptions.Item label="Supplier">
+                      {suppliers.find(s => s.id === selectedVisit.supplierId)?.company_name || 'Unknown'}
+                    </Descriptions.Item>
+                    <Descriptions.Item label="Visit Date">
+                      {moment(selectedVisit.visit_date).format('MMMM D, YYYY')}
+                    </Descriptions.Item>
+                    <Descriptions.Item label="Visit Type">
+                      {visitTypes.find(t => t.value === selectedVisit.type)?.label || selectedVisit.type}
+                    </Descriptions.Item>
+                  </Descriptions>
+                </div>
+
+                <Form.Item
+                  name="status"
+                  label="Status"
+                  rules={[{ required: true }]}
+                >
+                  <Radio.Group className="grid grid-cols-2 gap-3">
+                    {statusOptions.map(option => (
+                      <Radio.Button 
+                        key={option.value} 
+                        value={option.value}
+                        className={`flex items-center justify-center p-3 rounded-lg ${option.color} text-white`}
+                      >
+                        {option.icon}
+                        <span className="ml-2">{option.label}</span>
+                      </Radio.Button>
+                    ))}
+                  </Radio.Group>
+                </Form.Item>
+
+                <Form.Item
+                  name="feedback"
+                  label="Supplier Feedback"
+                >
+                  <Select
+                    placeholder="Select feedback"
+                    className="w-full rounded-lg"
+                    options={feedbackOptions.map(f => ({
+                      value: f.value,
+                      label: (
+                        <div className="flex items-center">
+                          <span className="mr-2">{f.icon}</span>
+                          {f.label}
+                        </div>
+                      )
+                    }))}
+                  />
+                </Form.Item>
+
+                <Form.Item
+                  name="result"
+                  label="Visit Result"
+                >
+                  <Select
+                    placeholder="Select result"
+                    className="w-full rounded-lg"
+                    options={resultOptions}
+                  />
+                </Form.Item>
+
+                <Form.Item
+                  name="additional_notes"
+                  label="Additional Notes"
+                >
+                  <Input.TextArea 
+                    rows={3} 
+                    placeholder="Enter any additional notes about the visit"
+                    className="rounded-lg"
+                  />
+                </Form.Item>
+
+                <Divider className="my-4" />
+
+                <div className="flex justify-end gap-3">
+                  <Button 
+                    onClick={onStatusModalClose}
+                    className="rounded-lg h-10 px-6"
+                  >
+                    Cancel
+                  </Button>
+                  <Button 
+                    type="primary" 
+                    htmlType="submit" 
+                    className="bg-gradient-to-r from-emerald-500 to-emerald-600 hover:from-emerald-600 hover:to-emerald-700 border-0 h-10 px-6 rounded-lg shadow-sm"
+                  >
+                    Update Status
+                  </Button>
+                </div>
+              </div>
+            </Form>
+          )}
+        </Modal>
       </div>
     </ConfigProvider>
   );

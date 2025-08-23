@@ -22,23 +22,65 @@ async function getUserByEmail(email) {
   return rows.length > 0 ? rows[0] : null;
 }
 async function createUser(userData) {
-  const { first_name, last_name, phone,email, company_role_id } = userData;
-const saltRounds = 10;
-  const password_hashed = await bcrypt.hash(email, saltRounds);
-  // Insert into Users table
-  const userResult = await db.query(
-    'INSERT INTO Users (first_name, last_name, phone_number, company_role_id) VALUES (?, ?, ?, ?)',
-    [first_name, last_name,phone, company_role_id]
-  );
-  const userId = userResult.insertId;
+  try {
+    const { 
+      first_name, 
+      last_name, 
+      phone, 
+      email, 
+      join_date, 
+      status, 
+      address, 
+      emergency_contact, 
+      salary, 
+      account_number, 
+      company_role_id 
+    } = userData;
 
-  // Insert into Emails table
-  await db.query('INSERT INTO Emails (user_id, email) VALUES (?, ?)', [userId, email]);
+    const saltRounds = 10;
 
-  // Insert into User_Passwords table
-  await db.query('INSERT INTO User_Passwords (user_id, password_hashed) VALUES (?, ?)', [userId, password_hashed]);
+    // Hash password based on email (not secure, but I’ll leave as per your code)
+    const password_hashed = await bcrypt.hash(email, saltRounds);
 
-  return { user_id: userId };
+    // ✅ Fix: Added missing comma before company_role_id
+    const userResult = await db.query(
+      `INSERT INTO Users 
+        (first_name, last_name, email, phone_number, address, status, join_date, salary, emergency_contact, account_number, company_role_id) 
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [
+        first_name,
+        last_name,
+        email,
+        phone,
+        address,
+        status,
+        join_date,
+        salary,
+        emergency_contact,
+        account_number,
+        company_role_id
+      ]
+    );
+
+    const userId = userResult.insertId;
+
+    // Insert into Emails table
+    await db.query(
+      "INSERT INTO Emails (user_id, email) VALUES (?, ?)",
+      [userId, email]
+    );
+
+    // Insert into User_Passwords table
+    await db.query(
+      "INSERT INTO User_Passwords (user_id, password_hashed) VALUES (?, ?)",
+      [userId, password_hashed]
+    );
+
+    return { user_id: userId };
+  } catch (err) {
+    console.error("Error creating user:", err.message);
+    throw err;
+  }
 }
 async function getUsers() {
   const query = `
@@ -46,16 +88,22 @@ async function getUsers() {
       u.user_id,
       u.first_name,
       u.last_name,
+      u.phone_number,
+      u.status,
+      u.join_date,
+      u.added_date,
       e.email,
       cr.company_role_name
     FROM Users u
-    JOIN Emails e ON u.user_id = e.user_id
+    LEFT JOIN Emails e ON u.user_id = e.user_id
     JOIN Company_Roles cr ON u.company_role_id = cr.company_role_id
     ORDER BY u.user_id DESC
   `;
   const rows = await db.query(query);
   return rows;
 }
+
+
 async function getCompanyRoles() {
   const query = 'SELECT company_role_id, company_role_name FROM Company_Roles ORDER BY company_role_id';
   const rows = await db.query(query);
@@ -106,5 +154,53 @@ async function getMarketors() {
   }
 }
 
+async function createMammas(data) {
+const sql = `
+    INSERT INTO mamas (status, joinDate, fullName, woreda, phone, accountNumber)
+    VALUES (?, ?, ?, ?, ?, ?)
+  `;
+  const result = await db.query(sql, [
+    data.status,
+    data.joinDate,
+    data.fullName,
+    data.woreda,
+    data.phone,
+    data.accountNumber
+  ]);
+   return {
+    id: result.insertId,
+    ...data
+  };
+}
 
-module.exports = {getMarketors, getUserByEmail, createUser, getUsers, getCompanyRoles , findUserByEmail , deleteUser,UpdateUser };
+async function getAllMammas() {
+  const rows = await db.query("SELECT * FROM mamas ORDER BY id DESC");
+  return rows;
+}
+
+async function updateMamas(id, data) {
+  console.log(data)
+  const sql = `
+    UPDATE mamas
+    SET status = ?, joinDate = ?, fullName = ?, woreda = ?, phone = ?, accountNumber = ?
+    WHERE id = ?
+  `;
+  await db.query(sql, [
+    data.status,
+    data.joinDate,
+    data.fullName,
+    data.woreda,
+    data.phone,
+    data.accountNumber,
+    id
+  ]);
+  return { id, ...data };
+}
+
+// Delete member
+async function deleteMember(id) {
+  await db.query("DELETE FROM mamas WHERE id = ?", [id]);
+  return { message: "Member deleted successfully" };
+}
+
+module.exports = {getMarketors,deleteMember,createMammas, updateMamas,getAllMammas,getUserByEmail, createUser, getUsers, getCompanyRoles , findUserByEmail , deleteUser,UpdateUser };

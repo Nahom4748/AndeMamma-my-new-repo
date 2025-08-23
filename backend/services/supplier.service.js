@@ -4,9 +4,8 @@ const db = require('../config/db.config'); // <-- Import the pool
 
 async function createSupplier(supplierData) {
   console.log(supplierData)
-  const { company_name, contact_person, phone, location, region_code, janitors,sector_code } = supplierData;
-
-  if (!company_name || !contact_person || !phone || !location || !region_code) {
+  const { company_name, contact_persons, phone, location, region_code, janitors,sector_code } = supplierData;
+  if (!company_name || !contact_persons || !phone || !location || !region_code) {
     throw new Error('Missing required fields');
   }
 
@@ -21,8 +20,8 @@ async function createSupplier(supplierData) {
   const regionId = regionRows[0].id;
 
   const supplierResult = await db.query(
-    'INSERT INTO suppliers (company_name, contact_person, phone, location, region_id,sector_id) VALUES (?, ?, ?, ?, ?,?)',
-    [company_name, contact_person, phone, location, regionId,sector_code]
+    'INSERT INTO suppliers (company_name, contact_person,contact_phone,contact_email, phone, location, region_id,sector_id) VALUES (?, ?,?,?, ?, ?, ?,?)',
+    [company_name, contact_persons[0].name,contact_persons[0].phone,contact_persons[0].email, phone, location, regionId,sector_code]
   );
 
   const supplierId = supplierResult.insertId;
@@ -60,6 +59,8 @@ async function getSuppliers() {
       s.id AS supplier_id,
       s.company_name,
       s.contact_person,
+      s.contact_phone,
+      s.contact_email,
       s.phone AS supplier_phone,
       s.location,
       s.created_at AS supplier_created_at,
@@ -71,49 +72,45 @@ async function getSuppliers() {
       j.id AS janitor_id,
       j.name AS janitor_name,
       j.phone AS janitor_phone,
-      j.account AS janitor_account,
-      j.created_at AS janitor_created_at,
-      j.updated_at AS janitor_updated_at
+      j.account AS janitor_account
     FROM suppliers s
-    JOIN regions r ON s.region_id = r.id 
+    JOIN regions r ON s.region_id = r.id
     JOIN sectors sec ON s.sector_id = sec.id
     LEFT JOIN janitors j ON s.id = j.supplier_id
-    ORDER BY s.id, j.id, s.id
+    ORDER BY s.id, j.id
   `);
 
   const suppliersMap = new Map();
 
-  for (const row of rows) {
-    const supplierId = row.supplier_id;
-
-    if (!suppliersMap.has(supplierId)) {
-      suppliersMap.set(supplierId, {
-        id: supplierId,
+  rows.forEach(row => {
+    if (!suppliersMap.has(row.supplier_id)) {
+      suppliersMap.set(row.supplier_id, {
+        id: row.supplier_id,
         company_name: row.company_name,
         contact_person: row.contact_person,
+        contact_phone: row.contact_phone,
+        contact_email: row.contact_email,
         phone: row.supplier_phone,
         location: row.location,
-        created_at: row.supplier_created_at,
-        updated_at: row.supplier_updated_at,
         region_name: row.region_name,
         region_code: row.region_code,
         sector_name: row.sector_name,
         sector_code: row.sector_code,
-        janitors: [],
+        created_at: row.supplier_created_at,
+        updated_at: row.supplier_updated_at,
+        janitors: []
       });
     }
 
     if (row.janitor_id) {
-      suppliersMap.get(supplierId).janitors.push({
+      suppliersMap.get(row.supplier_id).janitors.push({
         id: row.janitor_id,
         name: row.janitor_name,
         phone: row.janitor_phone,
-        account: row.janitor_account,
-        created_at: row.janitor_created_at,
-        updated_at: row.janitor_updated_at,
+        account: row.janitor_account
       });
     }
-  }
+  });
 
   return Array.from(suppliersMap.values());
 }

@@ -12,4 +12,6 @@ router.delete("/suppliers/remove-marketer/:supplierId", marketorController.remov
 router.post("/api/marketer-visits", marketorController.submitMarketerVisitPlan); // Assuming you have a method to submit visit plans
 router.get("/api/marketer-visits",marketorController.marketorsVisitPlans)
 router.delete("/api/marketer-visits/:visitId",marketorController.deletevisiting); // Assuming you have a method to remove marketer from supplier
+router.put("/api/marketer-visits/:visitId",marketorController.UpdateVisitStatus); // Assuming you have a method to get visit plan by ID
+router.get("/api/weeklyplan", marketorController.weeklyplan); // Assuming you have a method to get visit plan by ID
 module.exports = router;

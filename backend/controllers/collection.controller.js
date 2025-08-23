@@ -153,26 +153,32 @@ async function reportsummary(req, res) {
     }
 
 // services/collection.service.js
+// Save Weekly Plans Controller
 async function saveWeeklyPlans(req, res) {
   try {
-    const { plans, createdBy } = req.body;
+    const { plans } = req.body;
 
+    // Validate input
     if (!Array.isArray(plans) || plans.length === 0) {
-      return res.status(400).json({ message: 'Invalid plans data' });
+      return res.status(400).json({ message: "Invalid plans data" });
     }
 
+    const { createdBy } = plans[0];
     if (!createdBy) {
-      return res.status(400).json({ message: 'Missing createdBy user ID' });
+      return res.status(400).json({ message: "Missing createdBy user ID" });
     }
 
-    await collectionService.saveWeeklyPlans(plans, createdBy);
+    // Call service
+    await collectionService.saveWeeklyPlans(plans);
 
-    res.status(201).json({ message: 'Weekly plans saved successfully' });
+    res.status(201).json({ message: "Weekly plans saved successfully" });
   } catch (error) {
-    console.error('Error saving weekly plans:', error);
-    res.status(500).json({ message: 'Failed to save weekly plans' });
+    console.error("Error saving weekly plans:", error);
+    res.status(500).json({ message: "Failed to save weekly plans" });
   }
 }
+
+
 
 async function getWeeklyPlan(req, res) {
   try {
@@ -274,7 +280,283 @@ async function SectorData(req, res) {
   }
 }
 
+async function getWeeklyCollectionData(req, res) {
+  try {
+    const weeklyData = await collectionService.getWeeklyCollectionData(); // Assuming you have a service method to get weekly collection data
+    res.status(200).json({
+      status: 'success',
+      data: weeklyData,
+    });
+  } catch (error) {
+    console.error('Error retrieving weekly collection data:', error);
+    res.status(500).json({
+      status: 'error',
+      message: 'Internal server error',
+    });
+  }
+}
 
+async function getCollectionTypeData(req, res) {
+  try {
+    const collectionTypeData = await collectionService.getCollectionTypeData(); // Assuming you have a service method to get collection type data
+    res.status(200).json({
+      status: 'success',
+      data: collectionTypeData,
+    });
+  } catch (error) {
+    console.error('Error retrieving collection type data:', error);
+    res.status(500).json({
+      status: 'error',
+      message: 'Internal server error',
+    });
+  }
+}
+async function getMonthlyTrendData(req, res) {
+  try {
+    const monthlyTrendData = await collectionService.getMonthlyTrendData(); // Assuming you have a service method to get monthly trend data
+    res.status(200).json({
+      status: 'success',
+      data: monthlyTrendData,
+    });
+  } catch (error) {
+    console.error('Error retrieving monthly trend data:', error);
+    res.status(500).json({
+      status: 'error',
+      message: 'Internal server error',
+    });
+  }
+}
+
+async function getDashboardStats(req, res) {
+  try {
+    const dashboardStats = await collectionService.getDashboardStats(); // Assuming you have a service method to get dashboard stats
+    res.status(200).json({
+      status: 'success',
+      data: dashboardStats,
+    });
+  } catch (error) {
+    console.error('Error retrieving dashboard stats:', error);
+    res.status(500).json({
+      status: 'error',
+      message: 'Internal server error',
+    });
+  }
+}
+
+async function suppliersstats(req, res) {
+  try {
+    const suppliersStats = await collectionService.getSuppliersStats(); // Assuming you have a service method to get suppliers stats
+    res.status(200).json({
+      status: 'success',
+      data: suppliersStats,
+    });
+  } catch (error) {
+    console.error('Error retrieving suppliers stats:', error);
+    res.status(500).json({
+      status: 'error',
+      message: 'Internal server error',
+    });
+  }
+}
+
+async function mostactivedays(req, res) {
+  try {
+    const mostActiveDays = await collectionService.getMostActiveDays(); // Assuming you have a service method to get most active days
+    res.status(200).json({
+      status: 'success',
+      data: mostActiveDays,
+    });
+  } catch (error) {
+    console.error('Error retrieving most active days:', error);
+    res.status(500).json({
+      status: 'error',
+      message: 'Internal server error',
+    });
+  }
+}
+
+// collectionController.js
+async function createCollectionSession(req, res) {
+  try {
+    const sessionData = req.body;
+    console.log("Session Data:", sessionData);
+    
+    // Validate request body
+    if (!sessionData || typeof sessionData !== 'object') {
+      return res.status(400).json({
+        status: 'error',
+        message: 'Invalid request body'
+      });
+    }
+
+    const newSession = await collectionService.createCollectionSession(sessionData);
+
+    res.status(201).json({
+      status: 'success',
+      data: newSession,
+    });
+  } catch (error) {
+    console.error('Error creating collection session:', error.message);
+    
+    // More specific error handling
+    if (error.message.includes('Missing required fields')) {
+      return res.status(400).json({
+        status: 'error',
+        message: error.message
+      });
+    }
+    
+    if (error.code === 'ER_NO_REFERENCED_ROW_2') {
+      return res.status(400).json({
+        status: 'error',
+        message: 'Invalid foreign key reference (supplier, marketer, or coordinator not found)'
+      });
+    }
+
+    res.status(500).json({
+      status: 'error',
+      message: error.message || 'Internal server error',
+    });
+  }
+}
+
+async function getCollectionSession(req, res) {
+  try {
+    const sessions = await collectionService.getCollectionSession(); // Assuming you have a service method to get collection sessions
+
+    res.status(200).json({
+      status: 'success',
+      data: sessions,
+    });
+  } catch (error) {
+    console.error('Error retrieving collection sessions:', error);
+    res.status(500).json({
+      status: 'error',
+      message: 'Internal server error',
+    });
+  }
+}
+
+async function updatesessions(req, res) {
+  try {
+    const { sessionId } = req.params;
+    const sessionData = req.body;
+
+    // Validate request body
+    if (!sessionData || typeof sessionData !== 'object') {
+      return res.status(400).json({
+        status: 'error',
+        message: 'Invalid request body'
+      });
+    }
+
+    const updatedSession = await collectionService.updateSession(sessionId, sessionData);
+
+    res.status(200).json({
+      status: 'success',
+      data: updatedSession,
+    });
+  } catch (error) {
+    console.error('Error updating collection session:', error.message);
+    
+    // More specific error handling
+    if (error.message.includes('Session not found')) {
+      return res.status(404).json({
+        status: 'error',
+        message: error.message
+      });
+    }
+
+    res.status(500).json({
+      status: 'error',
+      message: error.message || 'Internal server error',
+    });
+  }
+}
+async function siteevaluationreports(req, res) {
+  try {
+    console.log("Incoming request body:", req.body);
+
+    const result = await collectionService.createcostevaluation(req.body);
+
+    res.status(201).json({
+      success: true,
+      message: "Site evaluation report created successfully",
+      data: result,
+    });
+  } catch (error) {
+    console.error("Error creating site evaluation report:", error.message);
+    res.status(500).json({
+      success: false,
+      message: "Failed to create site evaluation report",
+      error: error.message,
+    });
+  }
+}
+
+async function getAllCostEvaluations(req, res) {
+  try {
+    const results = await collectionService.getAllCostEvaluations();
+    res.status(200).json({ success: true, data: results });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+}
+
+async function siteevaluationdelet(req, res) {
+  try {
+    const { id } = req.params;
+    const success = await collectionService.deleteSiteEvaluation(id);
+
+    if (!success) {
+      return res.status(404).json({ message: "Site Evaluation not found" });
+    }
+
+    res.status(200).json({ message: "Site Evaluation deleted successfully" });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+}
+
+async function addcustomer(req,res){
+ try {
+    const response = await collectionService.createCustomer(req.body);
+    res.json({ status: "success", data: response });
+  } catch (error) {
+    res.status(500).json({ status: "error", message: error.message });
+  }
+}
+
+async function getAllCustomers(req, res) {
+  try {
+    const response = await collectionService.getCustomers();
+    res.json( 
+      {
+
+      status:"success",
+      data:response});
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+}
+
+async function updateCustomer(req, res) {
+  try {
+    const response = await collectionService.updateCustomer(req.params.id, req.body);
+    res.json({ status: "success", data: response });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+}
+
+async function deleteCustomer(req, res) {
+  try {
+    await collectionService.deleteCustomer(req.params.id);
+        res.json({ status: "success", message: "Customer deleted successfully" });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+}
 
 
 // Export
@@ -291,6 +573,17 @@ module.exports = {
   getWeeklyPlan,dailyCollectionReport,
   getCollectionReportByPaperType,
   reportsummaryData,
-  SectorData
-  
+  SectorData,
+  getWeeklyCollectionData,
+  getCollectionTypeData,
+  getMonthlyTrendData,
+  getDashboardStats,
+  suppliersstats,
+  mostactivedays,
+  updatesessions,
+  createCollectionSession,
+  getCollectionSession,
+  siteevaluationreports,
+  getAllCostEvaluations,
+  siteevaluationdelet,addcustomer,getAllCustomers,updateCustomer,deleteCustomer
 };
