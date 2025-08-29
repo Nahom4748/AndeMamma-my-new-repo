@@ -157,6 +157,7 @@ async function reportsummary(req, res) {
 async function saveWeeklyPlans(req, res) {
   try {
     const { plans } = req.body;
+    console.log(plans)
 
     // Validate input
     if (!Array.isArray(plans) || plans.length === 0) {
@@ -178,6 +179,23 @@ async function saveWeeklyPlans(req, res) {
   }
 }
 
+async function weeklyplanstatus(req, res) {
+  try {
+  
+const { plans} = req.body;
+       // Call service
+    await collectionService.updateWeeklyPlanStatus(plans);
+
+    res.status(200).json({
+      
+      status: 'success',
+      message: "Weekly plan status updated successfully"
+     });
+  } catch (error) {
+    console.error("Error updating weekly plan status:", error);
+    res.status(500).json({ message: "Failed to update weekly plan status" });
+  }
+}
 
 
 async function getWeeklyPlan(req, res) {
@@ -558,6 +576,29 @@ async function deleteCustomer(req, res) {
   }
 }
 
+async function getCollectionsByDateRange (req, res)  {
+  try {
+    const { startDate, endDate } = req.query;
+
+    if (!startDate || !endDate) {
+      return res.status(400).json({ message: 'startDate and endDate are required' });
+    }
+
+    const collections = await collectionService.fetchCollectionsByDateRange(startDate, endDate);
+
+    res.json(collections);
+  } catch (error) {
+    console.error('Error fetching collections:', error.message);
+    res.status(500).json({ message: 'Server error', error: error.message });
+  }
+};
+
+//create push completed plan data from frontend
+
+
+
+
+
 
 // Export
 module.exports = {
@@ -585,5 +626,8 @@ module.exports = {
   getCollectionSession,
   siteevaluationreports,
   getAllCostEvaluations,
-  siteevaluationdelet,addcustomer,getAllCustomers,updateCustomer,deleteCustomer
+  siteevaluationdelet,addcustomer,getAllCustomers,updateCustomer,deleteCustomer,
+  getCollectionsByDateRange,
+  
+  weeklyplanstatus
 };

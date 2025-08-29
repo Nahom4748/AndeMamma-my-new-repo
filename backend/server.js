@@ -1,32 +1,30 @@
-// Import required modules
-const express = require("express");
-require("dotenv").config();
-const sanitize = require("sanitize");
-const path = require("path");
+require('dotenv').config();
+const express = require('express');
+const cors = require('cors');
+const path = require('path');
 
-// App initialization
 const app = express();
 const port = process.env.PORT || 5000;
 
-const cors = require('cors');
-
+// CORS configuration
 const corsOptions = {
-  origin: '*', // or process.env.FRONTEND_URL if using .env
+  origin: '*',
   methods: 'GET,HEAD,PUT,PATCH,POST,DELETE',
-  credentials: true, // This is the key!
+  credentials: true,
 };
-
 app.use(cors(corsOptions));
 
+// Body parser with increased limit for images
+app.use(express.json({ limit: '50mb' }));
 
-// Middleware
-app.use(express.json());
-app.use(sanitize.middleware);
+// Serve uploaded files statically
+app.use(express.static("public"));
+app.use("/uploads", express.static(path.join(__dirname, "uploads")));
+app.use(express.urlencoded({ extended: true }));
+// Import router
+const router = require('./routes');
+app.use(router); // base path
 
-// Import and mount main router with a base path
-const router = require("./routes");
-app.use(router); // ✅ Add a base path to prevent path-to-regexp error
-// Start server
 app.listen(port, () => {
   console.log(`✅ Server running at http://localhost:${port}`);
 });

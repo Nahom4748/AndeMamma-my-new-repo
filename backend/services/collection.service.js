@@ -260,6 +260,7 @@ async function getReportSummary(res, req) {
 
 // Save Weekly Plans Service
 async function saveWeeklyPlans(plans) {
+  console.log(plans)
   if (!Array.isArray(plans) || plans.length === 0) {
     throw new Error("Invalid or empty plans array");
   }
@@ -271,7 +272,6 @@ async function saveWeeklyPlans(plans) {
 
   const insertPromises = plans.map(async (plan, index) => {
     const { supplier_id, day, date, notes, type } = plan;
-    console.log(supplier_id, day, date, notes, type)
 
     if (!supplier_id || !day || !date || !type) {
       throw new Error(`Missing required fields in plan at index ${index}`);
@@ -296,6 +296,30 @@ async function saveWeeklyPlans(plans) {
   await Promise.all(insertPromises);
 }
 
+async function updateWeeklyPlanStatus(plans) { 
+  const { id, status, updatedAt, totalWeight, note, rejectionReason } = plans[0];
+
+  console.log(plans);
+  console.log(id, status, updatedAt, totalWeight, note, rejectionReason);
+
+  try {
+    return await db.query(
+      `UPDATE WeeklyPlan 
+       SET status = ?, 
+           total_collection_kg = ?, 
+           updatedAt = ?, 
+           note = ?, 
+           rejection_reason = ?
+       WHERE id = ?`,
+      [status, totalWeight, updatedAt, note || null, rejectionReason || null, id]
+    );
+  } catch (error) {
+    console.error(`Failed to update WeeklyPlan with id ${id}:`, error);
+    throw error;
+  }
+}
+
+
 
 async function createCustomer(data) {
   console.log(data)
@@ -319,24 +343,91 @@ async function createCustomer(data) {
 }
 
 
-
+   
 
 
 async function getWeeklyPlan() {
   try {
     const rows = await db.query(`
-      SELECT wp.id, wp.plan_date, wp.supplier_id, s.company_name, wp.collection_type_id, ct.name AS collection_type_name
+      SELECT 
+        wp.id,
+        wp.plan_date,
+        wp.day,
+        wp.note,
+        wp.collection_type_id,
+        wp.status,
+        wp.total_collection_kg,
+        wp.rejection_reason,
+        wp.updatedAt,
+        ct.name AS collection_type_name,
+
+        -- Supplier
+        wp.supplier_id,
+        s.company_name AS supplier_name,
+
+        -- Instore fields
+        wp.coordinator_id,
+        cc.name AS coordinator_name,
+        wp.marketer_name,
+
+        -- Regular fields
+        wp.driver_id,
+        d.name AS driver_name
+
       FROM WeeklyPlan wp
       JOIN suppliers s ON wp.supplier_id = s.id
       JOIN CollectionType ct ON wp.collection_type_id = ct.id
+      LEFT JOIN driver d ON wp.driver_id = d.id
+      LEFT JOIN collectioncoordinators cc ON wp.coordinator_id = cc.id
       ORDER BY wp.plan_date DESC
     `);
-    return rows;
+
+    return rows.map(row => {
+      if (row.collection_type_name.toLowerCase() === "instore") {
+        return {
+          id: row.id,
+          date: row.plan_date,
+          day: row.day,
+          status: row.status,
+          totalKg: row.total_collection_kg,
+          rejectionReason: row.rejection_reason,
+          updatedAt: row.updatedAt,
+
+          supplier: row.supplier_name,
+                    collectionType: row.collection_type_name, // ✅ added
+          coordinator: row.coordinator_name,
+          marketer: row.marketer_name,
+          time: row.plan_time,
+          note: row.note
+        };
+      } else {
+        return {
+          id: row.id,
+          date: row.plan_date,
+          day: row.day,
+          status: row.status,
+          totalKg: row.total_collection_kg,
+          rejectionReason: row.rejection_reason,
+          updatedAt: row.updatedAt,
+
+          supplier: row.supplier_name,
+          collectionType: row.collection_type_name, // ✅ added
+
+          driver: row.driver_name,
+          note: row.note
+        };
+      }
+    });
   } catch (error) {
-    console.error('Error retrieving weekly plans:', error);
+    console.error("Error retrieving weekly plans:", error);
     throw error;
   }
-} 
+}
+
+
+
+
+
 async function getDailyCollectionReport(date) {
   // Validate input date
   if (!date || isNaN(new Date(date).getTime())) {
@@ -1068,6 +1159,147 @@ async function deleteCustomer(id) {
   return { message: "Customer deleted successfully" };
 }
 
+async function fetchCollectionsByDateRange(startDate, endDate) {
+  const formatDate = (date) => new Date(date).toISOString().slice(0, 10);
+  const start = formatDate(startDate);
+  const end = formatDate(endDate);
+
+  // --- Regular Collections ---
+  const regularCollections = await db.query(`
+    SELECT 
+      rc.supplier_id,
+      s.company_name AS supplier_name,
+      'Regular' AS collection_type,
+      rci.paper_type_id,
+      pt.description AS paper_type,
+      SUM(rci.kg) AS total_kg,
+      SUM(rci.bag_count) AS total_bag,
+      j.name AS janitor_name,
+      j.account AS janitor_account
+    FROM RegularCollection rc
+    JOIN RegularCollectionItems rci ON rc.id = rci.regular_collection_id
+    JOIN suppliers s ON rc.supplier_id = s.id
+    JOIN PaperType pt ON rci.paper_type_id = pt.id
+    JOIN janitors j ON rc.janitor_id = j.id
+    WHERE rc.collection_date BETWEEN ? AND ?
+    GROUP BY rc.supplier_id, rci.paper_type_id, j.id
+  `, [start, end]);
+
+  // --- Instore Collections ---
+  const instoreCollections = await db.query(`
+    SELECT 
+      ic.supplier_id,
+      s.company_name AS supplier_name,
+      'Instore' AS collection_type,
+      ici.paper_type_id,
+      pt.description AS paper_type,
+      SUM(ici.kg) AS total_kg,
+      SUM(ici.bag_count) AS total_bag,
+      j.name AS janitor_name,
+      j.account AS janitor_account
+    FROM InstoreCollection ic
+    JOIN InstoreCollectionItems ici ON ic.id = ici.instore_collection_id
+    JOIN suppliers s ON ic.supplier_id = s.id
+    JOIN PaperType pt ON ici.paper_type_id = pt.id
+    JOIN janitors j ON ic.janitor_id = j.id
+    WHERE ic.collection_date BETWEEN ? AND ?
+    GROUP BY ic.supplier_id, ici.paper_type_id, j.id
+  `, [start, end]);
+
+  // Combine results
+  const allCollections = [...regularCollections, ...instoreCollections];
+
+  // Group by supplier
+  const grouped = allCollections.reduce((acc, row) => {
+    if (!acc[row.supplier_id]) {
+      acc[row.supplier_id] = {
+        supplier_id: row.supplier_id,
+        supplier_name: row.supplier_name,
+        collections: []
+      };
+    }
+    acc[row.supplier_id].collections.push({
+      collection_type: row.collection_type,
+      paper_type_id: row.paper_type_id,
+      paper_type: row.paper_type,
+      total_kg: row.total_kg,
+      total_bag: row.total_bag,
+      janitor_name: row.janitor_name,
+      janitor_account: row.janitor_account
+    });
+    return acc;
+  }, {});
+
+  return Object.values(grouped);
+}
+//get all getCompletedPlans
+
+async function getCompletedPlans() {
+  try {
+    const rows = await db.query(`
+      SELECT 
+        wp.id,
+        wp.plan_date,
+        wp.day,
+        wp.note,
+        wp.collection_type_id,
+        ct.name AS collection_type_name,
+
+        -- Supplier
+        wp.supplier_id,
+        s.company_name AS supplier_name,
+
+        -- Instore fields
+        wp.coordinator_id,
+        cc.name AS coordinator_name,
+        wp.marketer_name,
+
+        -- Regular fields
+        wp.driver_id,
+        d.name AS driver_name
+
+      FROM WeeklyPlan wp
+      JOIN suppliers s ON wp.supplier_id = s.id
+      JOIN CollectionType ct ON wp.collection_type_id = ct.id
+      LEFT JOIN driver d ON wp.driver_id = d.id
+      LEFT JOIN collectioncoordinators cc ON wp.coordinator_id = cc.id
+      WHERE wp.plan_date < CURDATE()  -- Only past dates
+      ORDER BY wp.plan_date DESC
+    `);
+
+    return rows.map(row => {
+      if (row.collection_type_name.toLowerCase() === "instore") {
+        return {
+          id: row.id,
+          date: row.plan_date,
+          day: row.day,
+          supplier: row.supplier_name,
+          collectionType: row.collection_type_name, // ✅ added
+          coordinator: row.coordinator_name,
+          marketer: row.marketer_name,
+          time: row.plan_time,
+          note: row.note
+        };
+      } else {
+        return {
+          id: row.id,
+          date: row.plan_date,
+          day: row.day,
+          supplier: row.supplier_name,
+          collectionType: row.collection_type_name, // ✅ added
+          driver: row.driver_name,
+          note: row.note
+        };
+      }
+    });
+  } catch (error) {
+    console.error("Error retrieving completed plans:", error);
+    throw error;
+  }
+}
+
+
+
 
 module.exports = {
   getcollectionType,getCustomers,
@@ -1094,6 +1326,8 @@ module.exports = {
   updateSession,
   createcostevaluation,
   getAllCostEvaluations,
-  deleteSiteEvaluation,createCustomer,updateCustomer,deleteCustomer
-
+  deleteSiteEvaluation,createCustomer,updateCustomer,deleteCustomer,
+  fetchCollectionsByDateRange,
+updateWeeklyPlanStatus,
+getCompletedPlans
 };

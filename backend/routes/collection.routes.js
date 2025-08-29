@@ -7,6 +7,8 @@ const collectionController = require("../controllers/collection.controller");
 // Define collection-related routes
 router.get("/collectionstype", collectionController.CollectionsType); // Assuming this exists
 router.get("/papertypes", collectionController.papertypes);
+router.get("/payment", collectionController.getCollectionsByDateRange);
+
 router.get("/drivers", collectionController.Drivers); // Assuming this exists
 router.post("/collections", collectionController.CreateCollection); // Assuming this exists
 router.get("/api/collection/summary",collectionController.collectionsummary); // Assuming this exists

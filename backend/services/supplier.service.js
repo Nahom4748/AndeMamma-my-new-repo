@@ -203,6 +203,102 @@ async function deleteSupplier(supplierId) {
   return { message: `Supplier with ID ${supplierId} deleted successfully` };
 }
 
+async function addSupplierHistory(historyDetails,supplierId, ) {
+  try {
+    console.log('supplierId:', supplierId, 'historyDetails:', historyDetails);
+    if (!supplierId || !historyDetails) {
+      throw new Error("Supplier ID and history details are required");
+    }
+
+    // Check if supplier exists first
+    const supplier = await db.query(
+      "SELECT id FROM suppliers WHERE id = ?",
+      [supplierId]
+    );
+
+    console.log(supplier)
+    if (supplier.length === 0) {
+      throw new Error(`Supplier with ID ${supplierId} does not exist`);
+    }
+
+    // Insert supplier history
+    const result = await db.query(
+      `INSERT INTO supplier_history (supplier_id, history_details) VALUES (?, ?)`,
+      [supplierId, historyDetails]
+    );
+
+    return { id: result.insertId, supplierId, historyDetails };
+  } catch (error) {
+    console.error("Error adding supplier history:", error.message);
+    throw error;
+  }
+}
+
+async function getSuppliersWithHistory() {
+  try {
+    const query = `
+      SELECT 
+        s.id AS supplier_id,
+        s.company_name,
+        s.contact_person,
+        s.contact_phone,
+        s.contact_email,
+        s.phone AS supplier_phone,
+        s.location,
+        s.created_at AS supplier_created_at,
+        s.updated_at AS supplier_updated_at,
+        r.name AS region_name,
+        r.code AS region_code,
+        sec.name AS sector_name,
+        sec.code AS sector_code,
+        sh.id AS history_id,
+        sh.history_details,
+        sh.created_at AS history_created_at
+      FROM suppliers s
+      JOIN regions r ON s.region_id = r.id
+      JOIN sectors sec ON s.sector_id = sec.id
+      LEFT JOIN supplier_history sh ON s.id = sh.supplier_id
+      ORDER BY s.id, sh.created_at DESC
+    `;
+    const rows = await db.query(query);
+
+    const suppliersMap = new Map();
+    rows.forEach(row => {
+      if (!suppliersMap.has(row.supplier_id)) {
+        suppliersMap.set(row.supplier_id, {
+          id: row.supplier_id,
+          company_name: row.company_name,
+          contact_person: row.contact_person,
+          contact_phone: row.contact_phone,
+          contact_email: row.contact_email,
+          phone: row.supplier_phone,
+          location: row.location,
+          region_name: row.region_name,
+          region_code: row.region_code,
+          sector_name: row.sector_name,
+          sector_code: row.sector_code,
+          created_at: row.supplier_created_at,
+          updated_at: row.supplier_updated_at,
+          history: []
+        });
+      }
+
+      if (row.history_id) {
+        suppliersMap.get(row.supplier_id).history.push({
+          id: row.history_id,
+          history_details: row.history_details,
+          created_at: row.history_created_at
+        });
+      }
+    });
+
+    return Array.from(suppliersMap.values());
+  } catch (error) {
+    console.error("❌ Error retrieving suppliers with history:", error.message);
+    throw error;
+  }
+}
+
 
 
 
@@ -212,4 +308,5 @@ module.exports = {
   getRegions,
   updateSupplier,
   deleteSupplier,
+  addSupplierHistory,getSuppliersWithHistory
 };

@@ -105,9 +105,41 @@ async function DeleteSupplier(req, res) {
   }
 }
 
+async function addSupplierHistory(req, res) {
+  try {
+    const supplierId = req.params.id;
+    console.log('Supplier ID for history:', supplierId);
+    const historyData = req.body.history_details;
+    console.log('Supplier History Data:', historyData);
+    const newHistory = await supplierService.addSupplierHistory(historyData, supplierId);
+    res.status(201).json({
+      status: 'success',
+      data: newHistory,
+    });
+  } catch (error) {
+    console.error('Error adding supplier history:', error.message);
+    res.status(400).json({
+      status: 'error',
+      message: error.message || 'Internal server error',
+    });
+  }
+}
 
-
-
+async function getSuppliersWithHistory(req, res) {
+  try {
+    const suppliers = await supplierService.getSuppliersWithHistory();
+    res.status(200).json({
+      status: 'success',
+      data: suppliers,
+    });
+  } catch (error) {
+    console.error('Error retrieving suppliers with history:', error);
+    res.status(500).json({
+      status: 'error',
+      message: 'Internal server error',
+    });
+  }
+}
 
 
 module.exports = {
@@ -115,5 +147,6 @@ module.exports = {
   Suppliers,
   Suppliersregions,
   UpdateSupplier,
-  DeleteSupplier
+  DeleteSupplier,
+  addSupplierHistory,getSuppliersWithHistory
 };

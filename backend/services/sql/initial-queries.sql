@@ -62,6 +62,16 @@ CREATE TABLE `suppliers` (
   FOREIGN KEY (`sector_id`) REFERENCES `sectors` (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
+CREATE TABLE `supplier_history` (
+  `id` INT(11) NOT NULL AUTO_INCREMENT,
+  `supplier_id` INT(11) NOT NULL,
+  `history_details` TEXT NOT NULL,
+  `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  FOREIGN KEY (`supplier_id`) REFERENCES `suppliers`(`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+
 -- 4. Janitors Table
 CREATE TABLE `janitors` (
   `id` INT(11) NOT NULL AUTO_INCREMENT,
@@ -89,7 +99,10 @@ INSERT INTO `Company_Roles` (`company_role_id`, `company_role_name`) VALUES
 (5, 'Finance'),
 (6, 'Store Keeper'),
 (7, 'Production Manager'),
-(8, 'Purchaser')
+(8, 'Purchaser'),
+(9, 'HR'),
+(10, 'regular cordination'),
+(11, 'operation manager'),
 ON DUPLICATE KEY UPDATE `company_role_name` = VALUES(`company_role_name`);
 
 
@@ -284,11 +297,87 @@ CREATE TABLE `WeeklyPlan` (
   `supplier_id` INT NOT NULL,
   `note` TEXT,
   `created_by` INT NOT NULL,
+  `driver_id` INT NULL,
+  `coordinator_id` INT NULL,
+  `marketer_name` VARCHAR(100) NULL,
+  `status` ENUM('pending', 'completed', 'not_completed', 'rejected') DEFAULT 'pending',
+  `total_collection_kg` DECIMAL(10,2) NULL,
+  `updatedAt` DATETIME NULL,
+  `not_completed_date` DATE NULL,
+  `rejection_reason` TEXT NULL,
   `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  FOREIGN KEY (`collection_type_id`) REFERENCES `CollectionType`(`id`),
-  FOREIGN KEY (`supplier_id`) REFERENCES `suppliers`(`id`),
+
+  -- Foreign keys
+  FOREIGN KEY (`collection_type_id`) REFERENCES `CollectionType`(`id`)
+      ON DELETE CASCADE ON UPDATE CASCADE,
+  FOREIGN KEY (`supplier_id`) REFERENCES `Suppliers`(`id`)
+      ON DELETE CASCADE ON UPDATE CASCADE,
   FOREIGN KEY (`created_by`) REFERENCES `Users`(`user_id`)
+      ON DELETE CASCADE ON UPDATE CASCADE,
+  FOREIGN KEY (`driver_id`) REFERENCES `Driver`(`id`)
+      ON DELETE SET NULL ON UPDATE CASCADE,
+  FOREIGN KEY (`coordinator_id`) REFERENCES `CollectionCoordinators`(`id`)
+      ON DELETE SET NULL ON UPDATE CASCADE
 );
+
+CREATE TABLE item_suppliers (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    name VARCHAR(255) NOT NULL,
+    contact_person VARCHAR(100) NOT NULL,
+    phone VARCHAR(20) NOT NULL,
+    email VARCHAR(100) NOT NULL UNIQUE,
+    license_number VARCHAR(50) NOT NULL UNIQUE,
+    address TEXT NOT NULL,
+    sector VARCHAR(100) NOT NULL,
+    status ENUM('active', 'inactive') DEFAULT 'active',
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+);
+CREATE TABLE items (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  name VARCHAR(255) NOT NULL,
+  description TEXT,
+  category VARCHAR(100),
+  current_stock INT DEFAULT 0,
+  unit_price DECIMAL(10, 2) NOT NULL,
+  sale_price DECIMAL(10, 2),
+  min_stock_level INT DEFAULT 5,
+  notes TEXT,
+  supplier_id INT,
+  collection_date DATE,
+  image VARCHAR(255),
+  size VARCHAR(50),
+  dimension VARCHAR(100),
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  FOREIGN KEY (supplier_id) REFERENCES item_suppliers(id)
+);
+
+-- Sales table
+CREATE TABLE sales (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  customer_name VARCHAR(255),
+  customer_contact VARCHAR(255),
+  payment_method VARCHAR(50),
+  subtotal DECIMAL(10,2),
+  vat DECIMAL(10,2),
+  total DECIMAL(10,2),
+  sale_date DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Sale items table (linked to sales)
+CREATE TABLE sale_items (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  sale_id INT,
+  product_id INT,
+  quantity INT,
+  unit_price DECIMAL(10,2),
+  vat_rate DECIMAL(5,2),
+  FOREIGN KEY (sale_id) REFERENCES sales(id),
+  FOREIGN KEY (product_id) REFERENCES items(id)
+);
+
+
 
 -- Collection Sessions (Fixed)
 CREATE TABLE collection_sessions (
