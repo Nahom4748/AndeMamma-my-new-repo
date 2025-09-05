@@ -118,7 +118,7 @@ async function saveVisitPlans(plans) {
       notes,
       marketer_id
     } = plan;
-console.log("Visit plan details from marketors service:", plan);
+console.log("Visit plan uuuuuuuuuuuuuuuuuuuuu from marketors service:", plan);
     if (
       supplier_id === undefined ||
       visit_date === undefined ||
@@ -221,7 +221,40 @@ async function updateVisit(visitId, status) {
   }
 }
 
+async function getweaklypalnofmarketor (marketorId) {
+  if (!marketorId) {
+    throw new Error('Marketer ID is required');
+  }
+  console.log("Marketor ID received in service:", marketorId);
 
+  const query = `
+    SELECT 
+      mvp.*,
+      s.id AS supplier_id,
+      s.company_name,
+      s.contact_person,
+      s.phone AS supplier_phone,
+      s.location AS supplier_location,
+      s.created_at AS supplier_created_at,
+      s.updated_at AS supplier_updated_at,
+      
+      u.user_id AS marketer_id,
+      u.first_name,
+      u.last_name,
+      u.phone_number AS marketer_phone,
+      u.added_date AS marketer_added_date,
+      CONCAT(u.first_name, ' ', u.last_name) AS marketer_name
+    FROM MarketerVisitPlans mvp
+    JOIN suppliers s ON mvp.supplier_id = s.id
+    JOIN Users u ON mvp.created_by = u.user_id
+    WHERE mvp.created_by = ?
+    ORDER BY mvp.visit_date DESC
+  `;
+
+  const rows = await db.query(query, [marketorId]);
+  console.log("Weekly plan rows for marketer:", rows);
+  return rows;
+}
 
 
 
@@ -263,6 +296,55 @@ console.log("Weekly plan rows:", rows);
 
 
 
+async function getSuppliersWithMarketer(marketerId) {
+  if (!marketerId) {
+    throw new Error("Marketer ID is required");
+  }
+
+  const query = `
+    SELECT 
+      s.id AS supplier_id,
+      s.company_name,
+      s.contact_person,
+      s.phone,
+      s.location,
+      r.name AS region_name,
+      sec.name AS sector_name,
+      u.user_id AS marketer_id,
+      CONCAT(u.first_name, ' ', u.last_name) AS marketer_name
+    FROM suppliers s
+    INNER JOIN SupplierMarketerAssignments sma 
+      ON s.id = sma.supplier_id
+    INNER JOIN Users u 
+      ON sma.marketer_id = u.user_id
+    LEFT JOIN regions r 
+      ON s.region_id = r.id
+    LEFT JOIN sectors sec
+      ON s.sector_id = sec.id
+    WHERE sma.marketer_id = ?
+    ORDER BY s.company_name ASC
+  `;
+
+  const rows = await db.query(query, [marketerId]); // ✅ no destructuring
+
+  return rows.map((row) => ({
+    supplierId: row.supplier_id,
+    companyName: row.company_name,
+    contactPerson: row.contact_person,
+    phone: row.phone,
+    location: row.location,
+    region: row.region_name || "Unknown",
+    sector: row.sector_name || "Unknown",
+    marketer: {
+      id: row.marketer_id,
+      name: row.marketer_name,
+    },
+  }));
+}
+
+
+
+
 
 
 
@@ -280,5 +362,7 @@ module.exports = {
   getMarketerVisitPlans,
   deleteVisitPlan,
   updateVisit,
-  getWeeklyPlan
+  getWeeklyPlan,
+  getSuppliersWithMarketer,
+  getweaklypalnofmarketor
 };

@@ -240,9 +240,57 @@ async function weeklyplan(req, res) {
   }
 }
 
+//get suppliers with marketer id
+async function getSuppliersWithMarketer(req, res) {
+  try {
+    const marketerId = req.params.marketerId;
+    if (!marketerId) {
+      return res.status(400).json({
+        status: 'error',
+        message: 'Marketer ID is required',
+      });
+    }
+
+    const suppliers = await marketorService.getSuppliersWithMarketer(marketerId);
+    res.status(200).json({
+      status: 'success',
+      data: suppliers,
+    });
+  } catch (error) {
+    console.error('Error retrieving suppliers with marketer ID:', error);
+    res.status(500).json({
+      status: 'error',
+      message: 'Internal server error',
+    });
+}
+}
 
 
+//get marketors wekly plan
+async function getweaklypalnofmarketor(req, res) {
+  try {
+    const marketorId = req.params.marketorId;
+    console.log("Fetching weekly plan for marketer ID:", marketorId);
+    if (!marketorId) {
+      return res.status(400).json({
+        status: 'error',
+        message: 'Marketer ID is required',
+      });
+    }
 
+    const plans = await marketorService.getweaklypalnofmarketor(marketorId);
+    res.status(200).json({
+      status: 'success',
+      data: plans,
+    });
+  } catch (error) {
+    console.error('Error retrieving weekly plan of marketer:', error);
+    res.status(500).json({
+      status: 'error',
+      message: 'Internal server error',
+    });
+}
+}
 
 
 module.exports = {
@@ -254,5 +302,7 @@ module.exports = {
   marketorsVisitPlans,
   deletevisiting,
   UpdateVisitStatus,
-  weeklyplan
+  weeklyplan,
+  getSuppliersWithMarketer,
+  getweaklypalnofmarketor
 };

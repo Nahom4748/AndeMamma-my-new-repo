@@ -5,6 +5,7 @@ const jwtSecret = process.env.JWT_SECRET || "your_jwt_secret";
 async function logIn(req, res) {
   try {
     const { email, password } = req.body;
+    console.log(password);
     const user = await loginService.logIn({ email, password });
 
     if (user.status === "fail") {
@@ -20,6 +21,7 @@ async function logIn(req, res) {
     };
 
     const token = jwt.sign(payload, jwtSecret, { expiresIn: "24h" });
+    
 
     return res.status(200).json({
       status: "success",

@@ -634,21 +634,48 @@ try {
 async function getDashboardStats() {
   const rows = await db.query(`
     SELECT 
-      (SELECT COUNT(*) FROM MarketerVisitPlans WHERE MONTH(visit_date) = MONTH(CURDATE())) AS total_collections,
+      -- Total this month (kg sum from both types)
+      (
+        (SELECT IFNULL(SUM(total_kg), 0) 
+         FROM InstoreCollection 
+         WHERE YEAR(collection_date) = YEAR(CURDATE()) 
+           AND MONTH(collection_date) = MONTH(CURDATE()))
+        +
+        (SELECT IFNULL(SUM(total_kg), 0) 
+         FROM RegularCollection 
+         WHERE YEAR(collection_date) = YEAR(CURDATE()) 
+           AND MONTH(collection_date) = MONTH(CURDATE()))
+      ) AS total_collections_kg,
+
+      -- Active suppliers
       (SELECT COUNT(*) FROM suppliers) AS active_suppliers,
+
+      -- Scheduled visits today
       (SELECT COUNT(*) FROM MarketerVisitPlans WHERE visit_date = CURDATE()) AS scheduled_today,
-      (SELECT COUNT(*) FROM MarketerVisitPlans WHERE YEAR(visit_date) = YEAR(CURDATE()) 
-          AND MONTH(visit_date) = MONTH(CURDATE())) AS monthly_reports
+
+      -- Monthly reports (count of visit plans)
+      (SELECT COUNT(*) FROM MarketerVisitPlans 
+       WHERE YEAR(visit_date) = YEAR(CURDATE()) 
+         AND MONTH(visit_date) = MONTH(CURDATE())) AS monthly_reports,
+
+      -- Weekly Regular total
+      (SELECT IFNULL(SUM(total_kg), 0) 
+       FROM RegularCollection 
+       WHERE YEARWEEK(collection_date, 1) = YEARWEEK(CURDATE(), 1)) AS weekly_regular,
+
+      -- Weekly Instore total
+      (SELECT IFNULL(SUM(total_kg), 0) 
+       FROM InstoreCollection 
+       WHERE YEARWEEK(collection_date, 1) = YEARWEEK(CURDATE(), 1)) AS weekly_instore
   `);
 
-  const data = rows[0]; // first row with stats
+  const data = rows[0];
 
   return [
     {
-      title: "Total Collections",
-      value: data.total_collections.toLocaleString(),
+      title: "Total Collections (kg)",
+      value: data.total_collections_kg.toLocaleString(),
       description: "This month",
-      // icon and color info can be added on frontend
     },
     {
       title: "Active Suppliers",
@@ -665,8 +692,19 @@ async function getDashboardStats() {
       value: data.monthly_reports.toLocaleString(),
       description: "Generated",
     },
+    {
+      title: "Weekly Regular Collections (kg)",
+      value: data.weekly_regular.toLocaleString(),
+      description: "This week",
+    },
+    {
+      title: "Weekly Instore Collections (kg)",
+      value: data.weekly_instore.toLocaleString(),
+      description: "This week",
+    },
   ];
 }
+
 
 async function getSuppliersStats() {
  const rows = await db.query(`
@@ -1298,6 +1336,63 @@ async function getCompletedPlans() {
   }
 }
 
+async function createRegularPlan(data) {
+  try {
+  
+    const result = await db.query(
+      `INSERT INTO WeeklyPlan 
+        (plan_date, day, collection_type_id, supplier_id, note, created_by, driver_id, coordinator_id, marketer_name, status) 
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [
+        data.collection_date,         // plan_date
+        data.collection_day,          // day
+        2,                            // Regular collection_type_id (hardcoded = 2)
+        data.supplier_id,             // supplier_id
+        data.notes || null,           // note (frontend key: notes)
+        parseInt(data.created_by),    // created_by (cast to INT)
+        data.driver_id,                     // validated driver_id
+        data.coordinator_id || null,  // coordinator_id (optional)
+        data.marketer_name || null,   // marketer_name
+        data.status || "pending"      // default = pending
+      ]
+    );
+
+    return { ...data, id: result.insertId };
+  } catch (error) {
+    console.error("Error creating regular plan:", error.message);
+    throw error;
+  }
+}
+
+async function createInStorePlan(data) {
+  try {
+    // Validate required fields
+       const result = await db.query(
+      `INSERT INTO WeeklyPlan 
+        (plan_date, day, collection_type_id, supplier_id, note, created_by, driver_id, coordinator_id, marketer_name, status) 
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [
+        data.collection_date,         // plan_date
+        data.collection_day,          // day
+        1,             // mapped from type
+        data.supplier_id,             // supplier_id
+        data.notes || null,           // note
+        parseInt(data.created_by),    // created_by
+        null,                     // validated driver_id
+        data.coordinator_id || null,  // coordinator_id
+        data.marketer_name || null,   // marketer_name
+        data.status || "pending"      // default = pending
+      ]
+    );
+
+    return { id: result.insertId, ...data };
+  } catch (error) {
+    console.error("Error creating collection plan:", error.message);
+    throw error;
+  }
+}
+
+
 
 
 
@@ -1329,5 +1424,8 @@ module.exports = {
   deleteSiteEvaluation,createCustomer,updateCustomer,deleteCustomer,
   fetchCollectionsByDateRange,
 updateWeeklyPlanStatus,
-getCompletedPlans
+getCompletedPlans,
+createRegularPlan,
+createInStorePlan
+
 };

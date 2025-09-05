@@ -103,6 +103,8 @@ INSERT INTO `Company_Roles` (`company_role_id`, `company_role_name`) VALUES
 (9, 'HR'),
 (10, 'regular cordination'),
 (11, 'operation manager'),
+(12, 'driver'),
+(13, 'collection coordinator')
 ON DUPLICATE KEY UPDATE `company_role_name` = VALUES(`company_role_name`);
 
 
@@ -127,6 +129,7 @@ CREATE TABLE `Users` (
   `company_role_id` INT NOT NULL,
   FOREIGN KEY (`company_role_id`) REFERENCES `Company_Roles`(`company_role_id`) ON DELETE CASCADE
 ) ENGINE=InnoDB;
+
 
 
 -- 7. Emails Table
@@ -216,18 +219,6 @@ CREATE TABLE `CollectionType` (
 
 INSERT INTO `CollectionType` (name) VALUES ('Instore'), ('Regular');
 
--- 13. Drivers
-CREATE TABLE `Driver` (
-  `id` INT AUTO_INCREMENT PRIMARY KEY,
-  `name` VARCHAR(255) NOT NULL,
-  `phone` VARCHAR(20)
-);
-
-INSERT INTO `Driver` (name, phone) VALUES 
-('Sefu', '0911000001'),
-('Abrar', '0911000002');
-
--- 14. Coordinators
 CREATE TABLE `CollectionCoordinators` (
   `id` INT AUTO_INCREMENT PRIMARY KEY,
   `name` VARCHAR(100) NOT NULL UNIQUE
@@ -314,9 +305,9 @@ CREATE TABLE `WeeklyPlan` (
       ON DELETE CASCADE ON UPDATE CASCADE,
   FOREIGN KEY (`created_by`) REFERENCES `Users`(`user_id`)
       ON DELETE CASCADE ON UPDATE CASCADE,
-  FOREIGN KEY (`driver_id`) REFERENCES `Driver`(`id`)
+  FOREIGN KEY (`driver_id`) REFERENCES `Users`(`user_id`)
       ON DELETE SET NULL ON UPDATE CASCADE,
-  FOREIGN KEY (`coordinator_id`) REFERENCES `CollectionCoordinators`(`id`)
+  FOREIGN KEY (`coordinator_id`) REFERENCES `Users`(`user_id`)
       ON DELETE SET NULL ON UPDATE CASCADE
 );
 
@@ -375,6 +366,34 @@ CREATE TABLE sale_items (
   vat_rate DECIMAL(5,2),
   FOREIGN KEY (sale_id) REFERENCES sales(id),
   FOREIGN KEY (product_id) REFERENCES items(id)
+);
+
+CREATE TABLE mammasproducts (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    name VARCHAR(255) NOT NULL,
+    price_with_tube DECIMAL(10,2) NOT NULL,
+    price_without_tube DECIMAL(10,2) NOT NULL,
+    description TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+);
+
+CREATE TABLE mama_dayly_products_make (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    mama_id INT NOT NULL,
+    product_id INT NOT NULL,
+    type ENUM('withTube','withoutTube') NOT NULL,
+    quantity INT NOT NULL,
+    unit_price DECIMAL(10,2) NOT NULL,
+    total_amount DECIMAL(12,2) NOT NULL,
+    days_to_complete DATE NOT NULL,
+    notes TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    CONSTRAINT fk_mama FOREIGN KEY (mama_id) REFERENCES mamas(id) ON DELETE CASCADE,
+    CONSTRAINT fk_product FOREIGN KEY (product_id) REFERENCES mammasproducts(id) ON DELETE CASCADE,
+    INDEX idx_mama_id (mama_id),
+    INDEX idx_product_id (product_id)
 );
 
 

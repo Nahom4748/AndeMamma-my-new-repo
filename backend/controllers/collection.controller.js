@@ -596,6 +596,43 @@ async function getCollectionsByDateRange (req, res)  {
 //create push completed plan data from frontend
 
 
+async function createregularpaln(req, res) {
+  try {
+    const planData = req.body; // Get data from frontend
+    console.log("planData from controller:", planData);
+    const plans = await collectionService.createRegularPlan(planData); // Assuming you have a service method to get weekly plans
+    res.status(200).json({
+      status: 'success',
+      data: plans,
+    });
+  }
+  catch (error) {
+    console.error('Error retrieving weekly plans:', error);
+    res.status(500).json({
+      status: 'error',
+      message: 'Internal server error',
+    });
+  }
+}
+
+async function createinstoreplan(req, res) {
+  try {
+    const planData = req.body; // Get data from frontend
+    console.log("planData from controller:", planData);
+    const plans = await collectionService.createInStorePlan(planData); // Assuming you have a service method to get weekly plans
+    res.status(200).json({
+      status: 'success',
+      data: plans,
+    });
+  }
+  catch (error) {
+    console.error('Error retrieving weekly plans:', error);
+    res.status(500).json({
+      status: 'error',
+      message: 'Internal server error',
+    });
+  }
+}
 
 
 
@@ -628,6 +665,7 @@ module.exports = {
   getAllCostEvaluations,
   siteevaluationdelet,addcustomer,getAllCustomers,updateCustomer,deleteCustomer,
   getCollectionsByDateRange,
-  
-  weeklyplanstatus
+  createregularpaln,
+  weeklyplanstatus,
+  createinstoreplan
 };

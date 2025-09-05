@@ -24,7 +24,6 @@ router.post("/api/weekly-plan/status", collectionController.weeklyplanstatus); /
 router.post("/supplier-history/:id", supplierController.addSupplierHistory); // Assuming this exists
 // AVERVATION YEAR FOUND IGIBSTIOA LOGO WITH AVRIVATION ICON COLOR 
 router.get("/api/SuppliersWithHistory",supplierController.getSuppliersWithHistory); // Assuming this exists
-
 router.get("/api/collection/reports/papertype", collectionController.getCollectionReportByPaperType); // Assuming this exists
 router.get("/api/reports/summarydata",collectionController.reportsummaryData); 
 router.get("/sectors", collectionController.SectorData); // Assuming this exists

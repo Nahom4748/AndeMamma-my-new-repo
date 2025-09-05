@@ -5,7 +5,7 @@ const router = express.Router();
 // Import the login controller
 const loginControllers = require("../controllers/login.controller");
 // Create a route to handle the login request on post
-router.post("api/user/login", loginControllers.logIn);
+router.post("/api/auth/login", loginControllers.logIn);
 
 // Export the router
 module.exports = router;
