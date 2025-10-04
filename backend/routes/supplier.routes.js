@@ -19,13 +19,16 @@ router.post("/collections", collectionController.CreateCollection); // Assuming 
 router.post("/api/weekly-plan", collectionController.saveWeeklyPlans); // Assuming this exists
 
 router.get("/api/weekly-plan", collectionController.getWeeklyPlan); // Assuming this exists
+router.get("/api/getweeklyplan", collectionController.getWeeklyPlancollection); // Assuming this exists
 router.post("/api/weekly-plan/status", collectionController.weeklyplanstatus); // Assuming this exists
 // post suplayer history
 router.post("/supplier-history/:id", supplierController.addSupplierHistory); // Assuming this exists
 // AVERVATION YEAR FOUND IGIBSTIOA LOGO WITH AVRIVATION ICON COLOR 
 router.get("/api/SuppliersWithHistory",supplierController.getSuppliersWithHistory); // Assuming this exists
+
 router.get("/api/collection/reports/papertype", collectionController.getCollectionReportByPaperType); // Assuming this exists
 router.get("/api/reports/summarydata",collectionController.reportsummaryData); 
+router.get("/api/getSupplierCollectionSummary",collectionController.SupplierCollectionSummary); 
 router.get("/sectors", collectionController.SectorData); // Assuming this exists
 router.post("/customers", collectionController.addcustomer); // Assuming this exists
 router.get("/customers", collectionController.getAllCustomers); // Assuming this exists

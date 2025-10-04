@@ -15,7 +15,15 @@ router.delete("/api/marketer-visits/:visitId",marketorController.deletevisiting)
 router.put("/api/weekly-plan/:visitId",marketorController.UpdateVisitStatus); // Assuming you have a method to get visit plan by ID
 router.get("/api/weeklyplan", marketorController.weeklyplan); // Assuming you have a method to get visit plan by ID
 //get suplauers with suppliers with marketer id
+router.get("/api/getMarketerSuppliersWithPerformance/:marketerId", marketorController.getMarketerSuppliersWithPerformancewithmarketorid); // Assuming you have a method to get suppliers with marketer performance
 router.get("/api/suppliers/with-marketer/:marketerId", marketorController.getSuppliersWithMarketer); // Assuming you have a method to get suppliers with marketer by marketer ID
 //get marketors wekly plan 
+router.post("/suppliers/bulk-assign-marketer",marketorController.bulkAssign)
+router.post("/api/marketer-orders",marketorController.marketerOrders)
+router.get("/api/marketer-orders/:marketerId",marketorController.getActiveOrders)
+router.put("/api/marketer-orders/:orderId",marketorController.updateOrderStatus)
+router.get("/api/marketer-orders",marketorController.getOrders)
+
+router.get("/api/marketers/:marketerId/suppliers",marketorController.getMarketerSuppliersFull)
 router.get("/api/marketervisits/:marketorId",marketorController.getweaklypalnofmarketor); // Assuming you have a method to get visit plan by ID
 module.exports = router;

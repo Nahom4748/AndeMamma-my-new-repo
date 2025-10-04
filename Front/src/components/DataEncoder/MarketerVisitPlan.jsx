@@ -280,6 +280,7 @@ const MarketerVisitPlan = () => {
       );
 
       await axios.post("http://localhost:5000/api/marketer-visits", { plans });
+
       message.success("Visit plan submitted successfully!");
       fetchExistingPlans();
     } catch (err) {

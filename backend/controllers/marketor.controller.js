@@ -90,7 +90,6 @@ async function getSuppliersByMarketerId(req, res) {
     });
 }
 }             
-
 async function submitMarketerVisitPlan(req, res) {
   try {
     let plans = req.body;
@@ -292,6 +291,165 @@ async function getweaklypalnofmarketor(req, res) {
 }
 }
 
+async function bulkAssign(req, res) {
+  try {
+    const { marketerId, supplierIds } = req.body;
+
+    if (!marketerId || !supplierIds || !Array.isArray(supplierIds) || supplierIds.length === 0) {
+      return res.status(400).json({
+        status: 'error',
+        message: 'Marketer ID and at least one Supplier ID are required',
+      });
+    }
+
+    const result = await marketorService.bulkAssignMarketer(marketerId, supplierIds);
+
+    res.status(200).json({
+      status: 'success',
+      data: result,
+    });
+  } catch (error) {
+    console.error('Error bulk assigning marketer:', error);
+    res.status(500).json({
+      status: 'error',
+      message: error.message || 'Internal server error',
+    });
+  }
+}
+
+async function getMarketerSuppliersFull(req, res) {
+  try {
+    const marketerId = req.params.marketerId;
+    if (!marketerId) {
+      return res.status(400).json({
+        status: "error",
+        message: "Marketer ID is required",
+      });
+    }
+
+    const suppliers = await marketorService.getMarketerSuppliersFull(marketerId);
+
+    res.status(200).json({
+      status: "success",
+      data: suppliers,
+    });
+  } catch (error) {
+    console.error("Error fetching full marketer suppliers:", error);
+    res.status(500).json({
+      status: "error",
+      message: error.message || "Internal server error",
+    });
+  }
+}
+
+
+
+async function marketerOrders(req, res) {
+  try {
+    console.log("📥 Incoming order:", req.body);
+
+    const newOrder = await marketorService.createMarketerOrder(req.body);
+
+    res.status(201).json({
+      message: "✅ Marketer order saved successfully",
+      order: newOrder
+    });
+  } catch (error) {
+    console.error("❌ Error saving marketer order:", error);
+    res.status(500).json({ error: "Failed to save marketer order" });
+  }
+}
+
+
+async function getActiveOrders(req, res) {
+  try {
+    const { marketerId } = req.params;
+    if (!marketerId) {
+      return res.status(400).json({ error: "Marketer ID is required" });
+    }
+
+    const orders = await marketorService.getActiveOrdersByMarketer(marketerId);
+
+    res.status(200).json({
+      message: "✅ Active orders retrieved successfully",
+      count: orders.length,
+      orders
+    });
+  } catch (error) {
+    console.error("❌ Error retrieving active orders:", error);
+    res.status(500).json({ error: "Failed to retrieve orders" });
+  }
+}
+async function getOrders(req, res) {
+  try {
+  const orders = await marketorService.getActiveOrders();
+    res.status(200).json({
+      message: "✅ Active orders retrieved successfully",
+      count: orders.length,
+      orders
+    });
+  } catch (error) {
+    console.error("❌ Error retrieving active orders:", error);
+    res.status(500).json({ error: "Failed to retrieve orders" });
+  }
+}
+
+//get getMarketerSuppliersWithPerformance with marketor id
+async function getMarketerSuppliersWithPerformancewithmarketorid(req, res) {
+  try {
+    const marketerId = req.params.marketerId;
+    if (!marketerId) {
+      return res.status(400).json({
+        status: "error",
+        message: "Marketer ID is required",
+      });
+    }
+    const suppliers = await marketorService.getMarketerSuppliersWithPerformance(marketerId);
+
+    res.status(200).json({
+      status: "success",
+      data: suppliers,
+    });
+  }
+  catch (error) {
+    console.error("Error fetching marketer suppliers with performance:", error);
+    res.status(500).json({
+      status: "error",
+      message: error.message || "Internal server error",
+    });
+  }
+}
+
+// ✅ Backend: Update Order Status
+async function updateOrderStatus(req, res) {
+  try {
+    const { orderId } = req.params;
+    const updateData = req.body; // <-- direct body instead of req.body.updateData
+
+    console.log("Updating order status:", { updateData, orderId });
+
+    if (!updateData || !updateData.status) {
+      return res.status(400).json({ error: "Order ID and new status are required" });
+    }
+
+    const updatedOrder = await marketorService.updateOrderStatus(updateData, orderId);
+
+    if (!updatedOrder) {
+      return res.status(404).json({ error: "Order not found or could not be updated" });
+    }
+
+    res.status(200).json({
+      message: "✅ Order status updated successfully",
+      order: updatedOrder,
+    });
+  } catch (error) {
+    console.error("❌ Error updating order status:", error);
+    res.status(500).json({ error: "Failed to update order status" });
+  }
+}
+
+
+
 
 module.exports = {
   assignMarketer,
@@ -304,5 +462,11 @@ module.exports = {
   UpdateVisitStatus,
   weeklyplan,
   getSuppliersWithMarketer,
-  getweaklypalnofmarketor
+  getweaklypalnofmarketor,bulkAssign,
+  getMarketerSuppliersFull,
+  marketerOrders,
+  getActiveOrders,
+  getOrders,
+  getMarketerSuppliersWithPerformancewithmarketorid,
+  updateOrderStatus
 };

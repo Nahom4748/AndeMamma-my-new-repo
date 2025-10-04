@@ -197,6 +197,45 @@ const { plans} = req.body;
   }
 }
 
+//getSupplierCollectionSummary
+
+async function SupplierCollectionSummary(req, res) {
+  try {
+    const summary = await collectionService.getSupplierCollectionSummary(); // Assuming you have a service method to get supplier collection summary    
+    res.status(200).json({
+      status: 'success',
+      data: summary,
+    });
+  }
+  catch (error) {
+    console.error('Error retrieving supplier collection summary:', error);
+    res.status(500).json({
+      status: 'error',
+      message: 'Internal server error',
+    });
+  }
+}
+
+async function getWeeklyPlancollection(req, res) {
+  try {
+    const {start_date, end_date} = req.query;
+    if (!start_date || !end_date) {
+      return res.status(400).json({ message: "start_date and end_date are required" });
+    }
+    const weeklyPlans = await collectionService.getWeeklyPlancollection(start_date, end_date); // Assuming you have a service method to get weekly plans
+    res.status(200).json({
+      status: 'success',
+      data: weeklyPlans,
+    });
+  }
+  catch (error) {
+    console.error('Error retrieving weekly plans:', error);
+    res.status(500).json({
+      status: 'error',
+      message: 'Internal server error',
+    });
+  }
+}
 
 async function getWeeklyPlan(req, res) {
   try {
@@ -460,6 +499,8 @@ async function updatesessions(req, res) {
     const { sessionId } = req.params;
     const sessionData = req.body;
 
+    console.log("Updating Session ID:", sessionId);
+    console.log("With Data:", sessionData);
     // Validate request body
     if (!sessionData || typeof sessionData !== 'object') {
       return res.status(400).json({
@@ -634,7 +675,49 @@ async function createinstoreplan(req, res) {
   }
 }
 
+async function getSuppliersWithCollections(req, res) {
+  try {
+    const { marketerId } = req.params;
 
+    if (!marketerId) {
+      return res.status(400).json({
+        status: "error",
+        message: "Marketer ID is required",
+      });
+    }
+
+    const suppliers = await collectionService.getMarketerSuppliersWithCollections(marketerId);
+
+    res.status(200).json({
+      status: "success",
+      count: suppliers.length,
+      data: suppliers,
+    });
+  } catch (error) {
+    console.error("❌ Error fetching suppliers with collections:", error.message);
+    res.status(500).json({
+      status: "error",
+      message: "Internal server error",
+    });
+  }
+}
+async function collectioncordinatordashbord(req, res) {
+  try {
+    const dashboardData = await collectionService.getcollectioncordinatordashbord();
+
+    if (!dashboardData) {
+      return res.status(404).json({ message: "No dashboard data found" });
+    }
+
+    res.status(200).json({
+      message: "Collection Coordinator Dashboard data fetched successfully",
+      data: dashboardData
+    });
+  } catch (error) {
+    console.error("❌ Error in controller:", error);
+    res.status(500).json({ error: error.message });
+  }
+}
 
 
 // Export
@@ -667,5 +750,9 @@ module.exports = {
   getCollectionsByDateRange,
   createregularpaln,
   weeklyplanstatus,
-  createinstoreplan
+  createinstoreplan,
+  getSuppliersWithCollections,
+  collectioncordinatordashbord,
+  getWeeklyPlancollection,
+  SupplierCollectionSummary
 };

@@ -395,6 +395,23 @@ CREATE TABLE mama_dayly_products_make (
     INDEX idx_mama_id (mama_id),
     INDEX idx_product_id (product_id)
 );
+CREATE TABLE MarketerOrders (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  supplier_id INT NOT NULL,
+  marketer_id INT NOT NULL,
+  intention_date DATETIME NOT NULL,
+  contact_person VARCHAR(100) NOT NULL,
+  phone_number VARCHAR(20) NOT NULL,
+  estimated_kg DECIMAL(10,2) NOT NULL,
+  require_shredder BOOLEAN DEFAULT FALSE,
+  additional_notes TEXT,
+  status ENUM('active','completed','cancelled','onprocess') DEFAULT 'active'
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+
+  FOREIGN KEY (supplier_id) REFERENCES suppliers(id) ON DELETE CASCADE,
+  FOREIGN KEY (marketer_id) REFERENCES Users(user_id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 
 
@@ -406,6 +423,7 @@ CREATE TABLE collection_sessions (
   marketer_id INT NULL,
   coordinator_id INT NULL,
   site_location VARCHAR(255) NOT NULL,
+  require_shredder ENUM("yes","no") DEFAULT "no"
   estimated_start_date DATETIME NOT NULL,
   estimated_end_date DATETIME NOT NULL,
   actual_start_date DATETIME NULL,

@@ -1,5 +1,7 @@
 const db = require('../config/db.config'); // <-- Import the pool
 const { get } = require('../routes');
+const { getMonthRange } = require("../utils/dateHelper");
+
 
 async function getcollectionType() {
   const rows = await db.query(`SELECT id, name FROM CollectionType ORDER BY id`);
@@ -297,10 +299,8 @@ async function saveWeeklyPlans(plans) {
 }
 
 async function updateWeeklyPlanStatus(plans) { 
-  const { id, status, updatedAt, totalWeight, note, rejectionReason } = plans[0];
+  const { id, status, updatedAt, total_collection_kg, note, rejection_reason } = plans[0];
 
-  console.log(plans);
-  console.log(id, status, updatedAt, totalWeight, note, rejectionReason);
 
   try {
     return await db.query(
@@ -311,7 +311,7 @@ async function updateWeeklyPlanStatus(plans) {
            note = ?, 
            rejection_reason = ?
        WHERE id = ?`,
-      [status, totalWeight, updatedAt, note || null, rejectionReason || null, id]
+      [status, total_collection_kg, updatedAt, note || null, rejection_reason || null, id]
     );
   } catch (error) {
     console.error(`Failed to update WeeklyPlan with id ${id}:`, error);
@@ -341,10 +341,6 @@ async function createCustomer(data) {
     ...data
   };
 }
-
-
-   
-
 
 async function getWeeklyPlan() {
   try {
@@ -425,9 +421,6 @@ async function getWeeklyPlan() {
 }
 
 
-
-
-
 async function getDailyCollectionReport(date) {
   // Validate input date
   if (!date || isNaN(new Date(date).getTime())) {
@@ -455,9 +448,6 @@ async function getDailyCollectionReport(date) {
     throw error;
   }
 }
-
-
-
 
 async function getCollectionReportByPaperType() {
   try {
@@ -746,12 +736,31 @@ const rows = await db.query(`
 // ✅ Create Collection Session
 async function createCollectionSession(data) {
   try {
-    console.log("Creating collection session with data:", data);
-    const sessionNumber = data.sessionNumber || `CS-${Date.now()}`;
+
+    // 🔄 Normalize keys from frontend to backend format
+    const normalized = {
+      sessionNumber: data.session_number || `CS-${Date.now()}`,
+      supplierId: data.supplier_id,
+      supplierName: data.supplier_name,
+      site_location: data.site_location,
+      marketerId: data.marketer_id,
+      marketerName: data.marketer_name,
+      coordinatorId: data.coordinator_id,
+      coordinatorName: data.coordinator_name,
+      estimated_start_date: data.estimated_start_date,
+      estimatedEndDate: data.estimated_end_date,
+      estimatedAmount: data.estimatedAmount,
+      status:data.status || 'scheduled',
+      collectionData: data.collection_data || null,
+      performance: data.performance || null,
+      problems: data.problems || null,
+      comments: data.comments || null,
+      totalTimeSpent: data.total_time_spent || 0,
+    };
 
     // Required fields
     const requiredFields = ["supplierId", "site_location", "estimated_start_date", "estimatedEndDate"];
-    const missingFields = requiredFields.filter(field => !data[field]);
+    const missingFields = requiredFields.filter(field => !normalized[field]);
     if (missingFields.length) {
       throw new Error(`Missing required fields: ${missingFields.join(", ")}`);
     }
@@ -765,38 +774,45 @@ async function createCollectionSession(data) {
       `INSERT INTO collection_sessions
       (session_number, supplier_id, marketer_id, coordinator_id,
        site_location, estimated_start_date, estimated_end_date,
-       actual_start_date, actual_end_date, status,estimatedAmount,
+       actual_start_date, actual_end_date, status, estimatedAmount,
        total_time_spent, performance, collection_data, problems, comments)
-       VALUES (?, ?, ?, ?, ?,?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
-        sessionNumber,
-        data.supplierId,
-        data.marketerId || null,
-        data.coordinatorId || null,
-        data.site_location,
-        formatDate(data.estimated_start_date),
-        formatDate(data.estimatedEndDate),
-        formatDate(data.estimated_start_date),
-        formatDate(data.estimatedEndDate),
-        data.status || "planned",
-        data.collection_data?.estimatedAmount || 0,
-        data.totalTimeSpent || 0,
-        JSON.stringify(data.performance || { efficiency: 0, quality: 0, punctuality: 0 }),
-        JSON.stringify(data.collectionData || {
+        normalized.sessionNumber,
+        normalized.supplierId,
+        normalized.marketerId || null,
+        normalized.coordinatorId || null,
+        normalized.site_location,
+        formatDate(normalized.estimated_start_date),
+        formatDate(normalized.estimatedEndDate),
+        formatDate(normalized.estimated_start_date),
+        formatDate(normalized.estimatedEndDate),
+        normalized.status,
+        normalized.estimatedAmount || 0,
+        normalized.totalTimeSpent,
+        JSON.stringify(normalized.performance || { efficiency: 0, quality: 0, punctuality: 0 }),
+        JSON.stringify(normalized.collectionData || {
           estimatedAmount: 0,
           paperTypes: { carton: 0, mixed: 0, sw: 0, sc: 0, np: 0 }
         }),
-        JSON.stringify(data.problems || []),
-        JSON.stringify(data.comments || [])
+        JSON.stringify(normalized.problems || []),
+        JSON.stringify(normalized.comments || [])
       ]
     );
+
 
     // Return inserted session
     const [inserted] = await db.query(
       `SELECT * FROM collection_sessions WHERE id = ?`,
-      [result.insertId]
-    );
+      [result.insertId]);
+
+
+  await db.query(
+  `UPDATE MarketerOrders 
+   SET status = 'onprocess' 
+   WHERE supplier_id = ? AND marketer_id = ?`,
+  [normalized.supplierId, normalized.marketerId],
+);
 
     return {
       ...inserted,
@@ -811,6 +827,7 @@ async function createCollectionSession(data) {
     throw error;
   }
 }
+
 
 
 async function getCollectionSession() {
@@ -843,12 +860,14 @@ async function getCollectionSession() {
       LEFT JOIN suppliers s ON cs.supplier_id = s.id
       LEFT JOIN users m ON cs.marketer_id = m.user_id
       LEFT JOIN collectioncoordinators cc ON cs.coordinator_id = cc.id
+      -- ✅ Filter for current month and last month
+      WHERE cs.created_at >= DATE_SUB(CURDATE(), INTERVAL 1 MONTH)
       ORDER BY cs.created_at DESC
     `);
 
     return rows.map(row => ({
       ...row,
-      // Only parse collection_data if status is 'completed', otherwise return empty object
+      // Only parse collection_data if status is 'completed'
       collection_data: row.status === 'completed' 
         ? JSON.parse(row.collection_data || "{}") 
         : {},
@@ -859,10 +878,11 @@ async function getCollectionSession() {
     }));
 
   } catch (error) {
-    console.error("Error retrieving collection sessions:", error.message);
+    console.error("❌ Error retrieving collection sessions:", error.message);
     throw error;
   }
 }
+
 
 async function updateSession(sessionId, updateData) {
   try {
@@ -871,6 +891,36 @@ async function updateSession(sessionId, updateData) {
     if (!sessionId) {
       throw new Error("Session ID is required");
     }
+
+    if(updateData.status=='completed'){
+      await db.query(
+        `UPDATE MarketerOrders 
+          SET status = 'completed'
+          WHERE id = ? AND marketer_id = ?`,
+        [updateData.marketer_order_id, updateData.marketer_id],
+      );
+      await db.query(
+        `UPDATE MarketerOrders 
+          SET additional_notes  = ?
+          WHERE id = ?`,
+        [updateData.comment,updateData.marketer_order_id],
+      );
+    }
+    if(updateData.status=='cancelled'){
+      await db.query(
+        `UPDATE MarketerOrders
+          SET status = 'cancelled'
+          WHERE id = ? AND marketer_id = ?`,
+        [updateData.marketer_order_id, updateData.marketer_id],
+      );
+       await db.query(
+        `UPDATE MarketerOrders 
+          SET additional_notes  = ?
+          WHERE id = ?`,
+        [updateData.comment,updateData.marketer_order_id],
+      );
+    }
+
 
     // First get the current session to check if status is changing to 'completed'
     const [currentSession] = await db.query(
@@ -1394,6 +1444,303 @@ async function createInStorePlan(data) {
 
 
 
+async function getMarketerSuppliersWithCollections(marketerId) {
+  if (!marketerId) throw new Error("Marketer ID is required");
+
+  const { start, end } = getMonthRange(); // first and last day of current month
+
+  // 1️⃣ Get suppliers assigned to marketer
+  const suppliers = await db.query(
+    `
+    SELECT s.id AS supplier_id, s.company_name
+    FROM suppliers s
+    INNER JOIN SupplierMarketerAssignments sma
+      ON s.id = sma.supplier_id
+    WHERE sma.marketer_id = ?
+    ORDER BY s.company_name ASC
+    `,
+    [marketerId]
+  );
+
+  let totalInstoreKg = 0;
+  let totalRegularKg = 0;
+  let totalInstoreCount = 0;
+  let totalRegularCount = 0;
+
+  const results = [];
+
+  for (const supplier of suppliers) {
+    // ✅ Instore
+    const instore = await db.query(
+      `SELECT COUNT(*) AS collection_count, IFNULL(SUM(total_kg),0) AS total_kg
+       FROM InstoreCollection
+       WHERE supplier_id = ? AND collection_date BETWEEN ? AND ?`,
+      [supplier.supplier_id, start, end]
+    );
+
+    // ✅ Regular
+    const regular = await db.query(
+      `SELECT COUNT(*) AS collection_count, IFNULL(SUM(total_kg),0) AS total_kg
+       FROM RegularCollection
+       WHERE supplier_id = ? AND collection_date BETWEEN ? AND ?`,
+      [supplier.supplier_id, start, end]
+    );
+
+    totalInstoreKg += instore[0].total_kg;
+    totalRegularKg += regular[0].total_kg;
+    totalInstoreCount += instore[0].collection_count;
+    totalRegularCount += regular[0].collection_count;
+
+    results.push({
+      supplierName: supplier.company_name,
+      collections: [
+        { type: "Instore", totalKg: instore[0].total_kg },
+        { type: "Regular", totalKg: regular[0].total_kg },
+      ]
+    });
+  }
+
+  // ✅ Final summary
+  const summary = {
+    totalInstoreCollections: totalInstoreCount,
+    totalRegularCollections: totalRegularCount,
+    totalKgCollected: totalInstoreKg + totalRegularKg
+  };
+
+  return { results, summary };
+}
+
+async function getcollectioncordinatordashbord() {
+  try {
+    const rows = await db.query(
+      `
+      SELECT 
+        -- Current Month total KG
+        COALESCE((
+          SELECT SUM(ic.total_kg)
+          FROM InstoreCollection ic
+          WHERE MONTH(ic.collection_date) = MONTH(CURRENT_DATE())
+            AND YEAR(ic.collection_date) = YEAR(CURRENT_DATE())
+        ), 0) AS month_total_kg,
+
+        -- Current Week total KG
+        COALESCE((
+          SELECT SUM(ic.total_kg)
+          FROM InstoreCollection ic
+          WHERE YEARWEEK(ic.collection_date, 1) = YEARWEEK(CURRENT_DATE(), 1)
+        ), 0) AS week_total_kg,
+
+        -- Today’s total KG
+        COALESCE((
+          SELECT SUM(ic.total_kg)
+          FROM InstoreCollection ic
+          WHERE DATE(ic.collection_date) = CURRENT_DATE()
+        ), 0) AS today_total_kg,
+
+        -- ✅ Total suppliers in database
+        (SELECT COUNT(*) FROM suppliers) AS total_suppliers,
+
+        -- ✅ Distinct suppliers with collection this month
+        COALESCE((
+          SELECT COUNT(DISTINCT ic.supplier_id)
+          FROM InstoreCollection ic
+          WHERE MONTH(ic.collection_date) = MONTH(CURRENT_DATE())
+            AND YEAR(ic.collection_date) = YEAR(CURRENT_DATE())
+        ), 0) AS month_suppliers
+      `
+    );
+
+    // 🔹 Ensure all days (Mon–Sat) included
+    const weekRows = await db.query(
+      `
+      SELECT d.day_name, COALESCE(SUM(ic.total_kg), 0) AS total_kg
+      FROM (
+        SELECT 'Monday' AS day_name, 2 AS dow UNION ALL
+        SELECT 'Tuesday', 3 UNION ALL
+        SELECT 'Wednesday', 4 UNION ALL
+        SELECT 'Thursday', 5 UNION ALL
+        SELECT 'Friday', 6 UNION ALL
+        SELECT 'Saturday', 7
+      ) d
+      LEFT JOIN InstoreCollection ic 
+        ON DAYOFWEEK(ic.collection_date) = d.dow
+       AND YEARWEEK(ic.collection_date, 1) = YEARWEEK(CURRENT_DATE(), 1)
+      GROUP BY d.day_name, d.dow
+      ORDER BY d.dow
+      `
+    );
+
+    return {
+      ...rows[0],
+      week_daily: weekRows   // Always 6 days with 0 if no collection
+    };
+  } catch (error) {
+    console.error("❌ Error retrieving instore performance:", error);
+    throw error;
+  }
+}
+
+// ✅ Fetch weekly plan collection with all related details
+// ✅ Fetch weekly plan collection with all related details
+async function getWeeklyPlancollection(startDate, endDate) {
+  try {
+    const rows = await db.query(
+      `
+      SELECT
+        wp.id,
+        wp.plan_date,
+        wp.day,
+        wp.note,  -- 📝 Plan note
+        wp.collection_type_id,
+        ct.name AS collection_type_name,
+        
+        -- Supplier info
+        wp.supplier_id,
+        s.company_name AS supplier_name,
+        r.name AS region_name,
+        sec.name AS sector_name,
+        
+        -- Coordinator info (from Users)
+        wp.coordinator_id,
+        CONCAT(cu.first_name, ' ', cu.last_name) AS coordinator_name,
+        
+        -- Driver info (from Users)
+        wp.driver_id,
+        CONCAT(du.first_name, ' ', du.last_name) AS driver_name,
+        
+        -- Marketer name (text field in WeeklyPlan)
+        wp.marketer_name,
+        
+        -- Status & details
+        wp.status,
+        wp.total_collection_kg,
+        wp.updatedAt,
+        wp.not_completed_date,
+        wp.rejection_reason,
+        wp.created_at
+        
+      FROM WeeklyPlan wp
+      JOIN suppliers s ON wp.supplier_id = s.id
+      JOIN regions r ON s.region_id = r.id
+      JOIN sectors sec ON s.sector_id = sec.id
+      JOIN CollectionType ct ON wp.collection_type_id = ct.id
+      
+      LEFT JOIN Users cu ON wp.coordinator_id = cu.user_id
+      LEFT JOIN Users du ON wp.driver_id = du.user_id
+      
+      WHERE wp.plan_date BETWEEN ? AND ?
+      ORDER BY wp.plan_date DESC
+      `,
+      [startDate, endDate]
+    );
+
+    return rows;
+  } catch (error) {
+    console.error("Error retrieving weekly plan collections:", error);
+    throw error;
+  }
+}
+
+// ✅ Supplier Collection Summary
+// ✅ Supplier Collection Summary with last collection type, kg, and total collections count
+async function getSupplierCollectionSummary() {
+  try {
+    const rows = await db.query(
+      `
+      SELECT 
+        s.id AS supplier_id,
+        s.company_name AS supplier_name,
+        
+        -- Last collection date
+        last_collection.collection_date AS last_collection_date,
+
+        -- Was there collection in the last 3 months?
+        CASE 
+          WHEN last_collection.collection_date >= DATE_SUB(CURDATE(), INTERVAL 3 MONTH) 
+          THEN 'Yes' 
+          ELSE 'No' 
+        END AS collected_in_last_3_months,
+
+        -- Last collection type
+        CASE 
+          WHEN last_collection.collection_type_id = 1 THEN 'Instore'
+          WHEN last_collection.collection_type_id = 2 THEN 'Regular'
+          ELSE 'None'
+        END AS last_collection_type,
+
+        -- Last collection KG
+        last_collection.total_kg AS last_collection_kg,
+
+        -- ✅ Total collections count (all time)
+        COALESCE(total_summary.total_collections, 0) AS total_collections
+
+      FROM suppliers s
+      LEFT JOIN (
+        -- Union Instore & Regular, add collection_type_id to distinguish
+        SELECT supplier_id, collection_date, total_kg, 1 AS collection_type_id
+        FROM InstoreCollection
+        UNION ALL
+        SELECT supplier_id, collection_date, total_kg, 2 AS collection_type_id
+        FROM RegularCollection
+      ) all_collections 
+        ON s.id = all_collections.supplier_id
+      LEFT JOIN (
+        -- Pick the real last collection row per supplier
+        SELECT ac1.supplier_id, ac1.collection_date, ac1.total_kg, ac1.collection_type_id
+        FROM (
+          SELECT supplier_id, collection_date, total_kg, collection_type_id,
+                 ROW_NUMBER() OVER (PARTITION BY supplier_id ORDER BY collection_date DESC) as rn
+          FROM (
+            SELECT supplier_id, collection_date, total_kg, 1 AS collection_type_id
+            FROM InstoreCollection
+            UNION ALL
+            SELECT supplier_id, collection_date, total_kg, 2 AS collection_type_id
+            FROM RegularCollection
+          ) ac
+        ) ac1
+        WHERE ac1.rn = 1
+      ) last_collection ON s.id = last_collection.supplier_id
+      LEFT JOIN (
+        -- ✅ Total collections count per supplier
+        SELECT supplier_id, COUNT(*) AS total_collections
+        FROM (
+          SELECT supplier_id FROM InstoreCollection
+          UNION ALL
+          SELECT supplier_id FROM RegularCollection
+        ) t
+        GROUP BY supplier_id
+      ) total_summary ON s.id = total_summary.supplier_id
+
+      GROUP BY 
+        s.id, 
+        s.company_name, 
+        last_collection.collection_date, 
+        last_collection.total_kg, 
+        last_collection.collection_type_id, 
+        total_summary.total_collections
+      ORDER BY s.company_name ASC
+      `
+    );
+
+    return rows;
+  } catch (error) {
+    console.error("Error retrieving supplier collection summary:", error);
+    throw error;
+  }
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 module.exports = {
@@ -1426,6 +1773,10 @@ module.exports = {
 updateWeeklyPlanStatus,
 getCompletedPlans,
 createRegularPlan,
-createInStorePlan
+createInStorePlan,
+getMarketerSuppliersWithCollections,
+getcollectioncordinatordashbord,
+getWeeklyPlancollection,
+getSupplierCollectionSummary
 
 };

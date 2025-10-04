@@ -8,7 +8,6 @@ const collectionController = require("../controllers/collection.controller");
 router.get("/collectionstype", collectionController.CollectionsType); // Assuming this exists
 router.get("/papertypes", collectionController.papertypes);
 router.get("/payment", collectionController.getCollectionsByDateRange);
-
 router.get("/drivers", collectionController.Drivers); // Assuming this exists
 router.post("/collections", collectionController.CreateCollection); // Assuming this exists
 router.get("/api/collection/summary",collectionController.collectionsummary); // Assuming this exists
@@ -32,10 +31,12 @@ router.post("/api/collection-plans",collectionController.createregularpaln); // 
 router.post("/api/in-store-plans",collectionController.createinstoreplan); // Assuming this exists
 
 // /collection-sessions
-router.post("/collection-sessions",collectionController.createCollectionSession); // Assuming this exists
+router.post("/api/collection-sessions",collectionController.createCollectionSession); // Assuming this exists
 router.get("/collection-sessions", collectionController.getCollectionSession); // Assuming this exists
-router.put("/collection-sessions/:sessionId", collectionController.updatesessions); // Assuming this exists
+router.put("/api/collection-sessions/:sessionId", collectionController.updatesessions); // Assuming this exists
 router.post("/site-evaluation-reports",collectionController.siteevaluationreports)
 router.get("/site-evaluation-reports",collectionController.getAllCostEvaluations)
 router.delete("/site-evaluation-reports/:id",collectionController.siteevaluationdelet)
+router.get("/api/collectioncorninatordashbord",collectionController.collectioncordinatordashbord)
+router.get("/api/marketersperformance/:marketerId/suppliers",collectionController.getSuppliersWithCollections)
 module.exports = router;  

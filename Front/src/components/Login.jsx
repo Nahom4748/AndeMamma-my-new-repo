@@ -31,6 +31,7 @@ export default function Login() {
       }
 
       const response = await api.post("/login", formData);
+      console.log(response.data)
 
       if (response.data.status === "success") {
         const token = response.data.data.user_token;
