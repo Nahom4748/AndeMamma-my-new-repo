@@ -343,6 +343,27 @@ CREATE TABLE items (
   updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   FOREIGN KEY (supplier_id) REFERENCES item_suppliers(id)
 );
+CREATE TABLE IF NOT EXISTS innovations (
+  id CHAR(36) PRIMARY KEY DEFAULT (UUID()),
+  product_name VARCHAR(255) NOT NULL,
+  material VARCHAR(255) NOT NULL,
+  color VARCHAR(100),
+  shape VARCHAR(100),
+  height DECIMAL(10,2),
+  length DECIMAL(10,2),
+  width DECIMAL(10,2),
+  void_length DECIMAL(10,2),
+  void_height DECIMAL(10,2),
+  print_type VARCHAR(255),
+  technique VARCHAR(255),
+  finishing_material VARCHAR(255),
+  special_feature TEXT,
+  image_path VARCHAR(500),  -- ✅ store file path, not the image itself
+  additional_notes TEXT,
+  status ENUM('active', 'archived') DEFAULT 'active',
+  created_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- Sales table
 CREATE TABLE sales (
@@ -413,6 +434,46 @@ CREATE TABLE MarketerOrders (
   FOREIGN KEY (marketer_id) REFERENCES Users(user_id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
+-- Final Inventory Table
+CREATE TABLE Inventory (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  paper_type_id INT NOT NULL,      -- Linked to PaperType table
+  total_kg DECIMAL(10,2) DEFAULT 0,
+  total_bag INT DEFAULT 0,
+  collection_date DATE NOT NULL,
+  created_by INT NULL,             -- User who recorded the entry
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+
+  -- Foreign Keys
+  FOREIGN KEY (paper_type_id) REFERENCES PaperType(id) 
+    ON DELETE CASCADE ON UPDATE CASCADE,
+  FOREIGN KEY (created_by) REFERENCES Users(user_id) 
+    ON DELETE SET NULL ON UPDATE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+DROP TABLE IF EXISTS storeSales;
+
+CREATE TABLE storeSales (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  paper_type_id INT NOT NULL,            -- Which paper type was sold
+  quantity_kg DECIMAL(10,2) DEFAULT 0,   -- Sold weight (kg)
+  quantity_bag INT DEFAULT 0,            -- Sold bags
+  sale_date DATE NOT NULL,               -- When the sale occurred
+  buyer_name VARCHAR(100) NULL,          -- Buyer name
+  buyer_contact VARCHAR(100) NULL,       -- Buyer contact info (optional)
+  price_per_kg DECIMAL(10,2) DEFAULT 0,  -- Price per kilogram
+  total_price DECIMAL(12,2) DEFAULT 0,   -- Total sale price (kg * price_per_kg)
+  created_by INT NULL,                   -- User who recorded the sale
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+
+  -- Foreign keys
+  FOREIGN KEY (paper_type_id) REFERENCES PaperType(id)
+    ON DELETE CASCADE ON UPDATE CASCADE,
+  FOREIGN KEY (created_by) REFERENCES Users(user_id)
+    ON DELETE SET NULL ON UPDATE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 
 -- Collection Sessions (Fixed)

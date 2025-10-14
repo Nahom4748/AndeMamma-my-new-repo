@@ -16,6 +16,8 @@ const salesRouter = require("./sales.routes");
 // import dashboardStatsRouter = require("./dashboardStats.routes");
 const dashboardStatsRouter = require("./dashboardStats.routes");
 const mammasProductRouter = require("./mammasproduct.routes");
+const inventoryRouter = require("./inventory.routes");
+const innovationRouter = require("./innovation.routes");
 
 
 // Use routers
@@ -30,6 +32,8 @@ router.use(itemRouter);
 router.use(salesRouter);
 router.use(dashboardStatsRouter);
 router.use(mammasProductRouter);
+router.use(inventoryRouter);
+router.use(innovationRouter);
 
 
 module.exports = router;
