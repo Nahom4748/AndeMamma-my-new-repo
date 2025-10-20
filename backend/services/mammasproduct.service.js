@@ -140,6 +140,78 @@ async function getMamaPaymentsByDateRange(startDate, endDate) {
   }
 }
 
+async function getRecentMammasProducts() {
+  try {
+    const rows = await db.query(
+      `
+      SELECT 
+        m.fullName AS mamaFullName,
+        mp.name AS productName,
+        mdpm.days_to_complete AS date,
+        mdpm.notes AS notes,
+        mdpm.type AS productType
+      FROM mama_dayly_products_make mdpm
+      INNER JOIN mammasproducts mp ON mdpm.product_id = mp.id
+      INNER JOIN mamas m ON mdpm.mama_id = m.id
+      WHERE MONTH(mdpm.days_to_complete) = MONTH(CURDATE())
+        AND YEAR(mdpm.days_to_complete) = YEAR(CURDATE())
+      ORDER BY mdpm.id DESC
+      `
+    );
+
+    return rows.map(row => ({
+      mamaFullName: row.mamaFullName,
+      productName: row.productName,
+      date: row.date,
+      notes: row.notes || "",
+      productType: row.productType, // 'withTube' or 'withoutTube'
+    }));
+  } catch (err) {
+    throw err;
+  }
+}
+
+// Analyze mama's performance for the current month
+async function getMamaMonthlyPerformance() {
+  try {
+    const rows = await db.query(
+      `
+      SELECT
+        m.id AS mamaId,
+        m.fullName AS mamaFullName,
+        COUNT(mdpm.id) AS totalProductsMade,
+        SUM(mdpm.quantity) AS totalQuantityMade
+      FROM mamas m
+      LEFT JOIN mama_dayly_products_make mdpm
+        ON m.id = mdpm.mama_id
+        AND MONTH(mdpm.days_to_complete) = MONTH(CURDATE())
+        AND YEAR(mdpm.days_to_complete) = YEAR(CURDATE())
+      GROUP BY m.id
+      ORDER BY totalProductsMade DESC
+      `
+    );
+
+    const totalMammasActive = rows.filter(r => r.totalProductsMade > 0).length;
+    const totalProductsThisMonth = rows.reduce((sum, r) => sum + (r.totalProductsMade || 0), 0);
+
+    const formatted = rows.map(r => ({
+      mamaId: r.mamaId,
+      mamaFullName: r.mamaFullName,
+      totalProductsMade: Number(r.totalProductsMade || 0),
+      totalQuantityMade: Number(r.totalQuantityMade || 0)
+    }));
+
+    return {
+      totalMammasActive,
+      totalProductsThisMonth,
+      mammas: formatted
+    };
+  } catch (err) {
+    throw err;  
+  }
+}
+
+
 
 module.exports = {
   createMammasProduct,
@@ -147,5 +219,7 @@ module.exports = {
     updateMammasProduct,
     deleteMammasProduct ,
     mamasDaylyProduct,
-    getMamaPaymentsByDateRange
+    getMamaPaymentsByDateRange,
+    getRecentMammasProducts,
+    getMamaMonthlyPerformance
 };

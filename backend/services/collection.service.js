@@ -736,8 +736,9 @@ const rows = await db.query(`
 // ✅ Create Collection Session
 async function createCollectionSession(data) {
   try {
+    console.log("Session Data:", data);
 
-    // 🔄 Normalize keys from frontend to backend format
+    // 🔄 Normalize keys from frontend
     const normalized = {
       sessionNumber: data.session_number || `CS-${Date.now()}`,
       supplierId: data.supplier_id,
@@ -745,12 +746,12 @@ async function createCollectionSession(data) {
       site_location: data.site_location,
       marketerId: data.marketer_id,
       marketerName: data.marketer_name,
-      coordinatorId: data.coordinator_id,
-      coordinatorName: data.coordinator_name,
+      coordinatorId: data.coordinator_id || null,
+      coordinatorName: data.coordinator_name || null,
       estimated_start_date: data.estimated_start_date,
       estimatedEndDate: data.estimated_end_date,
       estimatedAmount: data.estimatedAmount,
-      status:data.status || 'scheduled',
+      status: data.status || "scheduled",
       collectionData: data.collection_data || null,
       performance: data.performance || null,
       problems: data.problems || null,
@@ -758,24 +759,34 @@ async function createCollectionSession(data) {
       totalTimeSpent: data.total_time_spent || 0,
     };
 
-    // Required fields
+    // 🧩 Check required fields
     const requiredFields = ["supplierId", "site_location", "estimated_start_date", "estimatedEndDate"];
-    const missingFields = requiredFields.filter(field => !normalized[field]);
-    if (missingFields.length) {
-      throw new Error(`Missing required fields: ${missingFields.join(", ")}`);
-    }
+    const missingFields = requiredFields.filter((f) => !normalized[f]);
+    if (missingFields.length) throw new Error(`Missing required fields: ${missingFields.join(", ")}`);
 
-    // Format dates for MySQL
+    // 📅 Format dates for MySQL
     const formatDate = (date) =>
       date ? new Date(date).toISOString().slice(0, 19).replace("T", " ") : null;
 
-    // Insert into DB
+    // 🧠 Ensure coordinator exists (if provided)
+    if (normalized.coordinatorId) {
+      const exists = await db.query(
+        "SELECT user_id FROM users WHERE user_id = ? LIMIT 1",
+        [normalized.coordinatorId]
+      );
+      if (!exists || exists.length === 0) {
+        console.warn(`⚠️ Coordinator ID ${normalized.coordinatorId} not found. Setting to NULL.`);
+        normalized.coordinatorId = null;
+      }
+    }
+
+    // 📝 Insert session
     const result = await db.query(
       `INSERT INTO collection_sessions
-      (session_number, supplier_id, marketer_id, coordinator_id,
-       site_location, estimated_start_date, estimated_end_date,
-       actual_start_date, actual_end_date, status, estimatedAmount,
-       total_time_spent, performance, collection_data, problems, comments)
+       (session_number, supplier_id, marketer_id, coordinator_id,
+        site_location, estimated_start_date, estimated_end_date,
+        actual_start_date, actual_end_date, status, estimatedAmount,
+        total_time_spent, performance, collection_data, problems, comments)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         normalized.sessionNumber,
@@ -791,28 +802,30 @@ async function createCollectionSession(data) {
         normalized.estimatedAmount || 0,
         normalized.totalTimeSpent,
         JSON.stringify(normalized.performance || { efficiency: 0, quality: 0, punctuality: 0 }),
-        JSON.stringify(normalized.collectionData || {
-          estimatedAmount: 0,
-          paperTypes: { carton: 0, mixed: 0, sw: 0, sc: 0, np: 0 }
-        }),
+        JSON.stringify(
+          normalized.collectionData || {
+            estimatedAmount: 0,
+            paperTypes: { carton: 0, mixed: 0, sw: 0, sc: 0, np: 0 },
+          }
+        ),
         JSON.stringify(normalized.problems || []),
-        JSON.stringify(normalized.comments || [])
+        JSON.stringify(normalized.comments || []),
       ]
     );
 
+    // 🔁 Update MarketerOrders status
+    await db.query(
+      `UPDATE MarketerOrders 
+       SET status = 'onprocess' 
+       WHERE supplier_id = ? AND marketer_id = ?`,
+      [normalized.supplierId, normalized.marketerId]
+    );
 
-    // Return inserted session
+    // ✅ Return inserted session
     const [inserted] = await db.query(
       `SELECT * FROM collection_sessions WHERE id = ?`,
-      [result.insertId]);
-
-
-  await db.query(
-  `UPDATE MarketerOrders 
-   SET status = 'onprocess' 
-   WHERE supplier_id = ? AND marketer_id = ?`,
-  [normalized.supplierId, normalized.marketerId],
-);
+      [result.insertId]
+    );
 
     return {
       ...inserted,
@@ -821,12 +834,12 @@ async function createCollectionSession(data) {
       problems: JSON.parse(inserted.problems || "[]"),
       comments: JSON.parse(inserted.comments || "[]"),
     };
-
   } catch (error) {
-    console.error("Error in createCollectionSession:", error.message);
+    console.error("❌ Error in createCollectionSession:", error.message);
     throw error;
   }
 }
+
 
 
 
@@ -841,7 +854,7 @@ async function getCollectionSession() {
         cs.marketer_id,
         CONCAT(m.first_name, ' ', m.last_name) AS marketer_name,
         cs.coordinator_id,
-        CONCAT(cc.name) AS coordinator_name,  
+        CONCAT(cc.first_name,' ',cc.last_name) AS coordinator_name,  
         cs.site_location,
         cs.estimated_start_date,
         cs.estimated_end_date,
@@ -859,7 +872,7 @@ async function getCollectionSession() {
       FROM collection_sessions cs
       LEFT JOIN suppliers s ON cs.supplier_id = s.id
       LEFT JOIN users m ON cs.marketer_id = m.user_id
-      LEFT JOIN collectioncoordinators cc ON cs.coordinator_id = cc.id
+      LEFT JOIN users cc ON cs.coordinator_id = cc.user_id
       -- ✅ Filter for current month and last month
       WHERE cs.created_at >= DATE_SUB(CURDATE(), INTERVAL 1 MONTH)
       ORDER BY cs.created_at DESC
@@ -888,192 +901,112 @@ async function updateSession(sessionId, updateData) {
   try {
     console.log("Updating collection session with ID:", sessionId, "and data:", updateData);
 
-    if (!sessionId) {
-      throw new Error("Session ID is required");
-    }
+    if (!sessionId) throw new Error("Session ID is required");
 
-    if(updateData.status=='completed'){
+    // ✅ Normalize incoming keys (from frontend)
+    const normalized = {
+      supplierId: updateData.supplier_id ?? updateData.supplierId ?? null,
+      marketerId: updateData.marketer_id ?? updateData.marketerId ?? null,
+      coordinatorId: updateData.coordinator_id ?? updateData.coordinatorId ?? null,
+      site_location: updateData.site_location ?? null,
+      estimated_start_date: updateData.estimated_start_date ?? null,
+      estimatedEndDate: updateData.estimated_end_date ?? updateData.estimatedEndDate ?? null,
+      actual_start_date: updateData.actual_start_date ?? null,
+      actual_end_date: updateData.actual_end_date ?? null,
+      estimatedAmount: updateData.estimatedAmount ?? null,
+      totalTimeSpent: updateData.totalTimeSpent ?? null,
+      status: updateData.status ?? null,
+      comment: updateData.comment ?? null,
+      comments: updateData.comments ?? [],
+      problems: updateData.problems ?? [],
+      collection_data: updateData.collection_data ?? null,
+    };
+
+    // ✅ Sync MarketerOrders status and notes
+    if (normalized.status === 'completed' || normalized.status === 'cancelled') {
       await db.query(
         `UPDATE MarketerOrders 
-          SET status = 'completed'
-          WHERE id = ? AND marketer_id = ?`,
-        [updateData.marketer_order_id, updateData.marketer_id],
-      );
-      await db.query(
-        `UPDATE MarketerOrders 
-          SET additional_notes  = ?
-          WHERE id = ?`,
-        [updateData.comment,updateData.marketer_order_id],
-      );
-    }
-    if(updateData.status=='cancelled'){
-      await db.query(
-        `UPDATE MarketerOrders
-          SET status = 'cancelled'
-          WHERE id = ? AND marketer_id = ?`,
-        [updateData.marketer_order_id, updateData.marketer_id],
-      );
-       await db.query(
-        `UPDATE MarketerOrders 
-          SET additional_notes  = ?
-          WHERE id = ?`,
-        [updateData.comment,updateData.marketer_order_id],
+         SET status = ?, additional_notes = ?
+         WHERE supplier_id = ? AND marketer_id = ?`,
+        [
+          normalized.status,
+          normalized.comment,
+          normalized.supplierId,
+          normalized.marketerId
+        ]
       );
     }
 
-
-    // First get the current session to check if status is changing to 'completed'
+    // ✅ Get current session
     const [currentSession] = await db.query(
-      `SELECT status, collection_data FROM collection_sessions WHERE id = ?`,
+      `SELECT status, collection_data, performance FROM collection_sessions WHERE id = ?`,
       [sessionId]
     );
 
-    const isStatusChangingToCompleted = 
-      updateData.status === 'completed' && 
+    const isStatusChangingToCompleted =
+      normalized.status === 'completed' &&
       currentSession.status !== 'completed';
 
-    // Prepare update fields
+    // ✅ Build dynamic update fields
     const fields = [];
     const values = [];
 
-    if (updateData.supplierId) {
-      fields.push("supplier_id = ?");
-      values.push(updateData.supplierId);
-    }
-    if (updateData.marketerId) {
-      fields.push("marketer_id = ?");
-      values.push(updateData.marketerId);
-    }
-    if (updateData.coordinatorId) {
-      fields.push("coordinator_id = ?");
-      values.push(updateData.coordinatorId);
-    }
-    if (updateData.site_location) {
-      fields.push("site_location = ?");
-      values.push(updateData.site_location);
-    }
-    if (updateData.estimated_start_date) {
-      fields.push("estimated_start_date = ?");
-      values.push(new Date(updateData.estimated_start_date).toISOString().slice(0, 19).replace("T", " "));
-    }
-    if (updateData.estimatedEndDate) {
-      fields.push("estimated_end_date = ?");
-      values.push(new Date(updateData.estimatedEndDate).toISOString().slice(0, 19).replace("T", " "));
-    }
-    if (updateData.actual_start_date) {
-      fields.push("actual_start_date = ?");
-      values.push(new Date(updateData.actual_start_date).toISOString().slice(0, 19).replace("T", " "));
-    }
-    if (updateData.actual_end_date) {
-      fields.push("actual_end_date = ?");
-      values.push(new Date(updateData.actual_end_date).toISOString().slice(0, 19).replace("T", " "));
-    }
-    if (updateData.status) {
-      fields.push("status = ?");
-      values.push(updateData.status);
-    }
-    if (updateData.estimatedAmount !== undefined) {
-      fields.push("estimatedAmount = ?");
-      values.push(updateData.estimatedAmount);
-    }
-    if (updateData.totalTimeSpent !== undefined) {
-      fields.push("total_time_spent = ?");
-      values.push(updateData.totalTimeSpent);
-    }
-    
-    // Handle collection_data - only update if status is completed or if explicitly provided
-    if (updateData.collection_data && updateData.status === 'completed') {
-      fields.push("collection_data = ?");
-      values.push(JSON.stringify(updateData.collection_data));
-    }
-    
-    if (updateData.problems) {
-      fields.push("problems = ?");
-      values.push(JSON.stringify(updateData.problems));
-    }
-    if (updateData.comments) {
-      fields.push("comments = ?");
-      values.push(JSON.stringify(updateData.comments));
-    }
+    const pushField = (field, value) => {
+      if (value !== undefined) fields.push(`${field} = ?`), values.push(value ?? null);
+    };
 
-    // --- AUTO CALCULATE PERFORMANCE METRICS WHEN STATUS CHANGES TO COMPLETED ---
-    let efficiency = 0, quality = 0, punctuality = 0;
+    pushField("supplier_id", normalized.supplierId);
+    pushField("marketer_id", normalized.marketerId);
+    pushField("coordinator_id", normalized.coordinatorId);
+    pushField("site_location", normalized.site_location);
+    pushField("estimated_start_date", normalized.estimated_start_date ? new Date(normalized.estimated_start_date).toISOString().slice(0, 19).replace("T", " ") : null);
+    pushField("estimated_end_date", normalized.estimatedEndDate ? new Date(normalized.estimatedEndDate).toISOString().slice(0, 19).replace("T", " ") : null);
+    pushField("actual_start_date", normalized.actual_start_date ? new Date(normalized.actual_start_date).toISOString().slice(0, 19).replace("T", " ") : null);
+    pushField("actual_end_date", normalized.actual_end_date ? new Date(normalized.actual_end_date).toISOString().slice(0, 19).replace("T", " ") : null);
+    pushField("status", normalized.status);
+    pushField("estimatedAmount", normalized.estimatedAmount);
+    pushField("total_time_spent", normalized.totalTimeSpent);
+    pushField("problems", JSON.stringify(normalized.problems));
+    pushField("comments", JSON.stringify(normalized.comments));
+
+    // ✅ Compute performance if completed
+    let performanceData = { efficiency: 0, quality: 0, punctuality: 0 };
 
     if (isStatusChangingToCompleted) {
-      // Efficiency = (Actual Collected / Estimated) * 100
-      if (updateData.estimatedAmount && updateData.collection_data) {
-        const totalCollected = Object.values(updateData.collection_data.paperTypes || {})
-          .reduce((sum, amount) => sum + (parseFloat(amount) || 0), 0);
-        efficiency = totalCollected > 0 
-          ? ((totalCollected / updateData.estimatedAmount) * 100).toFixed(2)
-          : 0;
-      }
+      const totalCollected = Object.values(normalized.collection_data?.paperTypes || {}).reduce(
+        (sum, val) => sum + (parseFloat(val) || 0),
+        0
+      );
 
-      // Quality - check if there are any problems reported
-      // If no problems, quality is 100%, otherwise lower based on problem severity
-      const hasProblems = updateData.problems && updateData.problems.length > 0;
-      quality = hasProblems ? 80 : 100; // Simple example - adjust as needed
+      const estimated = parseFloat(normalized.estimatedAmount) || 0;
+      const efficiency = estimated > 0 ? ((totalCollected / estimated) * 100).toFixed(2) : 0;
+      const quality = normalized.problems.length ? 80 : 100;
+      const punctuality = 100;
 
-      // Punctuality = compare estimated vs actual duration
-      if (updateData.estimated_start_date && updateData.estimatedEndDate &&
-          updateData.actual_start_date && updateData.actual_end_date) {
-        const plannedDuration = new Date(updateData.estimatedEndDate) - new Date(updateData.estimated_start_date);
-        const actualDuration = new Date(updateData.actual_end_date) - new Date(updateData.actual_start_date);
-        
-        if (plannedDuration > 0 && actualDuration > 0) {
-          // If completed faster than estimated = good (over 100%)
-          // If completed slower than estimated = bad (under 100%)
-          punctuality = Math.min(120, Math.max(80, (plannedDuration / actualDuration) * 100)).toFixed(2);
-        } else {
-          punctuality = 100; // Default value if durations are invalid
-        }
-      } else {
-        punctuality = 100; // Default value if dates are missing
-      }
+      performanceData = { efficiency, quality, punctuality };
 
-      console.log("Calculated performance metrics:", {
-        efficiency,
-        quality,
-        punctuality,
-        totalCollected: Object.values(updateData.collection_data?.paperTypes || {}).reduce((sum, a) => sum + a, 0),
-        estimatedAmount: updateData.estimatedAmount
-      });
+      pushField("collection_data", JSON.stringify(normalized.collection_data));
     } else if (currentSession.status === 'completed') {
-      // If already completed, keep existing performance metrics
-      const existingPerformance = JSON.parse(currentSession.performance || "{}");
-      efficiency = existingPerformance.efficiency || 0;
-      quality = existingPerformance.quality || 0;
-      punctuality = existingPerformance.punctuality || 0;
+      performanceData = JSON.parse(currentSession.performance || "{}");
     }
 
-    // Merge into performance JSON
-    const performanceData = {
-      efficiency: parseFloat(efficiency),
-      quality: parseFloat(quality),
-      punctuality: parseFloat(punctuality),
-    };
-    fields.push("performance = ?");
-    values.push(JSON.stringify(performanceData));
+    pushField("performance", JSON.stringify(performanceData));
 
-    if (fields.length === 0) {
-      throw new Error("No fields to update");
-    }
+    if (fields.length === 0) throw new Error("No fields to update");
 
     values.push(sessionId);
 
-    // Run SQL
+    // ✅ Run query safely
     const sql = `
       UPDATE collection_sessions
       SET ${fields.join(", ")}
       WHERE id = ?
     `;
-    const result = await db.query(sql, values);
+    const result = await db.query(sql, values.map(v => v === undefined ? null : v));
 
-    if (result.affectedRows === 0) {
-      throw new Error("No session found with the provided ID");
-    }
+    if (result.affectedRows === 0) throw new Error("No session found with the provided ID");
 
-    // Return updated session
+    // ✅ Return updated session
     const [updatedSession] = await db.query(
       `SELECT * FROM collection_sessions WHERE id = ?`,
       [sessionId]
@@ -1082,18 +1015,16 @@ async function updateSession(sessionId, updateData) {
     return {
       ...updatedSession,
       performance: JSON.parse(updatedSession.performance || "{}"),
-      collection_data: updatedSession.status === 'completed' 
-        ? JSON.parse(updatedSession.collection_data || "{}")
-        : {},
+      collection_data: JSON.parse(updatedSession.collection_data || "{}"),
       problems: JSON.parse(updatedSession.problems || "[]"),
       comments: JSON.parse(updatedSession.comments || "[]"),
     };
-
   } catch (error) {
     console.error("Error updating collection session:", error.message);
     throw error;
   }
 }
+
 
 async function createcostevaluation(data) {
   try {

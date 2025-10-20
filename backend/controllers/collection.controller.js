@@ -436,7 +436,7 @@ async function mostactivedays(req, res) {
 async function createCollectionSession(req, res) {
   try {
     const sessionData = req.body;
-    console.log("Session Data:", sessionData);
+    console.log("xxxxx", sessionData);
     
     // Validate request body
     if (!sessionData || typeof sessionData !== 'object') {

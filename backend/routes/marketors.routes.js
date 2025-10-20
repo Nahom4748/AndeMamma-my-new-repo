@@ -16,6 +16,8 @@ router.put("/api/weekly-plan/:visitId",marketorController.UpdateVisitStatus); //
 router.get("/api/weeklyplan", marketorController.weeklyplan); // Assuming you have a method to get visit plan by ID
 //get suplauers with suppliers with marketer id
 router.get("/api/getMarketerSuppliersWithPerformance/:marketerId", marketorController.getMarketerSuppliersWithPerformancewithmarketorid); // Assuming you have a method to get suppliers with marketer performance
+router.get("/api/suppliers-performance/with-marketer", marketorController.getSuppliersWithMarketerPerformance); // Assuming you have a method to get suppliers with marketer performance
+router.get("/api/suppliers-performance/with-marketer/year-mounth", marketorController.getSuppliersWithMarketerPerformanceCountmouth); // Assuming you have a method to get suppliers with marketer performance count mouth
 router.get("/api/suppliers/with-marketer/:marketerId", marketorController.getSuppliersWithMarketer); // Assuming you have a method to get suppliers with marketer by marketer ID
 //get marketors wekly plan 
 router.post("/suppliers/bulk-assign-marketer",marketorController.bulkAssign)

@@ -15,10 +15,11 @@ router.get("/api/getWeeklyCollectionTrends", dashbordController.getWeeklyCollect
 
 //get getMonthlyData
 router.get("/api/getMonthlyData", dashbordController.getMonthlyData);
+router.get("/api/getYearlyData/:year", dashbordController.getYearlyData);
 
 //get getEmployeePerformance
 router.get("/api/getEmployeePerformance", dashbordController.getEmployeePerformance);
-router.get("/api/weekly-plan/:date", dashbordController.getdayPlan);
+router.get("/api/weekly-plans", dashbordController.getdayPlan);
 
 
 

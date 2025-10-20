@@ -448,9 +448,42 @@ async function updateOrderStatus(req, res) {
   }
 }
 
+async function getSuppliersWithMarketerPerformance(req, res) {
+  try {
 
+    const suppliers = await marketorService.getSuppliersWithMarketerPerformance();
+    res.status(200).json({
+      status: 'success',
+      data: suppliers,
+    });
+  }
+  catch (error) {
+    console.error("Error fetching suppliers with marketer performance:", error);
+    res.status(500).json({
+      status: "error",
+      message: error.message || "Internal server error",
+    });
+  }
+}
 
+async function getSuppliersWithMarketerPerformanceCountmouth(req, res) {
+  try {
+            const { year, month } = req.query;
+            console.log("Fetching suppliers with marketer performance for:", { year, month });
 
+  const marketorperformance = await marketorService.getSuppliersWithMarketerPerformanceCountmouth(year, month);
+    res.status(200).json({
+      status: 'success',
+      data: marketorperformance,
+    });
+  } catch (error) {
+    console.error("Error fetching suppliers with marketer performance:", error);
+    res.status(500).json({
+      status: "error",
+      message: error.message || "Internal server error",
+    });
+  }
+}
 module.exports = {
   assignMarketer,
     getMarketerAssignments,
@@ -468,5 +501,7 @@ module.exports = {
   getActiveOrders,
   getOrders,
   getMarketerSuppliersWithPerformancewithmarketorid,
-  updateOrderStatus
+  updateOrderStatus,
+  getSuppliersWithMarketerPerformance,
+  getSuppliersWithMarketerPerformanceCountmouth
 };

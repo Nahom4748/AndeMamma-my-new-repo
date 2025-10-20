@@ -97,14 +97,25 @@ async function getEmployeePerformance(req, res) {
 
 async function getdayPlan(req, res) {
   try {
-    const { date } = req.params; // example: /api/weekly-plan/2025-08-29
-    const schedule = await dashbordService.getWeeklyPlanByDate(date);
+    const schedule = await dashbordService.getWeeklyPlanByDate();
     res.json(schedule);
   } catch (error) {
     console.error("Error retrieving weekly plan:", error);
     res.status(500).json({ error: "Failed to fetch weekly plan" });
   }
 }
+async function getYearlyData(req, res) {
+  try {
+    const { year } = req.params; // example: /api/yearly-data/2025
+    const data = await dashbordService.getYearlyData(year);
+    res.json(data);
+  }
+  catch (error) {
+    console.error("Error retrieving yearly data:", error);
+    res.status(500).json({ error: "Failed to fetch yearly data" });
+  }
+}
+
 
 
 module.exports = {
@@ -114,5 +125,6 @@ module.exports = {
     getWeeklyCollectionTrends,
     getMonthlyData,
     getEmployeePerformance,
-    getdayPlan
+    getdayPlan,
+    getYearlyData,
 };

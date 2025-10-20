@@ -82,7 +82,27 @@ async function getMamaPayments(req, res) {
     res.status(500).json({ error: "Internal server error" });
   }
 }
+async function getRecentMammasProducts(req, res) {
+  try {
+    const products = await mammasProductService.getRecentMammasProducts();
+    res.status(200).json({ status: 'success', data: products });
+  } catch (error) {
+    console.error('Error fetching recent mammas products:', error);
+    res.status(500).json({ status: 'error', message: 'Internal server error' });
+  }
 
+}
+
+async function getMamaMonthlyPerformance(req, res) {
+  try {
+    const performanceData = await mammasProductService.getMamaMonthlyPerformance(); 
+    res.status(200).json({ status: 'success', data: performanceData });
+  }
+  catch (error) {
+    console.error('Error fetching mama monthly performance:', error);
+    res.status(500).json({ status: 'error', message: 'Internal server error' });
+  }
+}
 
 module.exports = {
   createMammasProduct,
@@ -90,7 +110,9 @@ module.exports = {
   updateMammasProduct,
   deleteMammasProduct,
     createMultipleMammasProducts,
-    getMamaPayments
+    getMamaPayments,
+    getRecentMammasProducts,
+    getMamaMonthlyPerformance
 };
 
 

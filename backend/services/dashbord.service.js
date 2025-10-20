@@ -274,14 +274,27 @@ async function getEmployeePerformance() {
   }
 }
 
-async function getWeeklyPlanByDate(planDate) {
+async function getWeeklyPlanByDate() {
   try {
-    // ================== Define week range ==================
-    const startOfWeek = new Date(planDate);
-    startOfWeek.setDate(startOfWeek.getDate() - startOfWeek.getDay() + 1); // Monday
+    // ================== Current date ==================
+    const today = new Date();
 
-    const endOfWeek = new Date(startOfWeek);
-    endOfWeek.setDate(startOfWeek.getDate() + 6); // Sunday
+    // ================== Calculate current week (Monday - Sunday) ==================
+    const dayOfWeek = today.getDay(); // Sunday = 0
+    const monday = new Date(today);
+    monday.setDate(today.getDate() - dayOfWeek + (dayOfWeek === 0 ? -6 : 1));
+    monday.setHours(0, 0, 0, 0);
+
+    // ================== Generate week dates ==================
+    const weekDates = [];
+    for (let i = 0; i < 7; i++) {
+      const d = new Date(monday);
+      d.setDate(monday.getDate() + i);
+      weekDates.push(d);
+    }
+
+    const sunday = new Date(weekDates[6]);
+    sunday.setHours(23, 59, 59, 999);
 
     // ================== Fetch weekly plans ==================
     const query = `
@@ -293,51 +306,113 @@ async function getWeeklyPlanByDate(planDate) {
         CONCAT(c.first_name, ' ', c.last_name) AS coordinatorName,
         ct.name AS type,
         w.status,
-        w.day
+        w.day,
+        DATE(w.plan_date) AS planDate
       FROM WeeklyPlan w
       JOIN suppliers s ON w.supplier_id = s.id
       LEFT JOIN Users d ON w.driver_id = d.user_id
       LEFT JOIN Users c ON w.coordinator_id = c.user_id
       JOIN CollectionType ct ON w.collection_type_id = ct.id
       WHERE w.plan_date BETWEEN ? AND ?
-      ORDER BY s.company_name ASC
+      ORDER BY w.day ASC, s.company_name ASC
     `;
 
-    const rows = await db.query(query, [startOfWeek, endOfWeek]);
+    const rows = await db.query(query, [monday, sunday]);
 
-    // ================== Format schedule ==================
-    const schedule = rows.map(r => ({
-      supplier: r.supplier,
-      location: r.location,
-      assignedTo:
-        r.type.toLowerCase() === "regular"
-          ? r.driverName || "N/A"
-          : r.coordinatorName || "N/A",
-      type: r.type.toLowerCase(),
-      status: r.status
-    }));
-
-    // ================== Count plans per weekday ==================
+    // ================== Default week days ==================
     const daysOfWeek = ["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday"];
+    const weeklySchedule = {};
 
-    const weeklyCounts = daysOfWeek.map(day => {
-      const count = rows.filter(r => r.day === day).length;
-      return { day, count };
+    daysOfWeek.forEach((day, index) => {
+      weeklySchedule[day] = {
+        date: weekDates[index].toISOString().split("T")[0], // YYYY-MM-DD
+        plans: []
+      };
     });
 
-    // ================== Return combined result ==================
-    return {
-      schedule,
-      upcomingWeek: weeklyCounts
-    };
+    // ================== Fill in plan details ==================
+    rows.forEach(r => {
+      const plan = {
+        supplier: r.supplier,
+        location: r.location,
+        assignedTo: r.type.toLowerCase() === "regular" ? r.driverName || "N/A" : r.coordinatorName || "N/A",
+        type: r.type.toLowerCase(),
+        status: r.status,
+        planDate: r.planDate
+      };
+
+      if (weeklySchedule[r.day]) {
+        weeklySchedule[r.day].plans.push(plan);
+      }
+    });
+
+    // ================== Convert to array for frontend ==================
+    const weekPlans = daysOfWeek.map(day => ({
+      day,
+      date: weeklySchedule[day].date,
+      plans: weeklySchedule[day].plans
+    }));
+
+    return weekPlans;
 
   } catch (error) {
-    console.error("❌ Error fetching weekly plan:", error.message);
+    console.error("❌ Error fetching current week plans:", error.message);
     throw error;
   }
 }
 
 
+
+
+
+
+async function getYearlyData(year) {
+  try {
+    // Validate year input
+    const yr = parseInt(year);
+    if (isNaN(yr) || yr < 2000 || yr > 2100) {
+      throw new Error("Invalid year parameter");
+    }
+    // Query to get monthly sums for the specified year
+    const rows = await db.query(`
+      SELECT 
+        MONTH(collection_date) AS month_number,
+        SUM(CASE WHEN type = 'regular' THEN total_kg ELSE 0 END) AS regular,
+        SUM(CASE WHEN type = 'instore' THEN total_kg ELSE 0 END) AS instore
+      FROM (
+        SELECT collection_date, total_kg, 'regular' AS type FROM RegularCollection
+        WHERE YEAR(collection_date) = ?
+        UNION ALL
+        SELECT collection_date, total_kg, 'instore' AS type FROM InstoreCollection
+        WHERE YEAR(collection_date) = ?
+      ) AS all_collections
+      GROUP BY MONTH(collection_date)
+      ORDER BY MONTH(collection_date)
+    `, [yr, yr]);
+    const months = [
+      "Jan", "Feb", "Mar", "Apr", "May", "Jun",
+      "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"
+    ];
+    // Map result to your desired format
+    const breakdown = months.map((m, idx) => {
+      const monthData = rows.find(r => r.month_number === idx + 1);
+      const regular = monthData ? monthData.regular : 0;
+      const instore = monthData ? monthData.instore : 0;
+      return {
+        month: m,
+        regular,
+        instore,
+        total: regular + instore
+      };
+    }
+    );
+    return breakdown;
+  }
+  catch (error) {
+    console.error("Error fetching yearly data:", error.message);
+    throw error;
+  }
+}
 
 
 
@@ -350,5 +425,6 @@ module.exports = {
     getWeeklyCollectionTrends
     ,getMonthlyData,
     getEmployeePerformance,
-    getWeeklyPlanByDate
+    getWeeklyPlanByDate,
+    getYearlyData
 };

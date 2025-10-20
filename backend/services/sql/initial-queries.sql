@@ -501,7 +501,7 @@ CREATE TABLE collection_sessions (
 
   FOREIGN KEY (supplier_id) REFERENCES suppliers(id),
   FOREIGN KEY (marketer_id) REFERENCES Users(user_id),
-  FOREIGN KEY (coordinator_id) REFERENCES CollectionCoordinators(id)
+  FOREIGN KEY (coordinator_id) REFERENCES Users(user_id)
 );
 
 
@@ -590,6 +590,25 @@ CREATE TABLE customers (
   createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
+CREATE TABLE collection_session_comments (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    collection_session_id INT NOT NULL,
+    supplier_id INT NOT NULL,
+    marketer_id INT NULL,
+    paper_type_id INT NOT NULL,
+    collected_kg DECIMAL(10,2) DEFAULT 0.00,
+    collection_bags INT DEFAULT 0,
+    image_path VARCHAR(255) NULL,
+    note TEXT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+
+    -- Foreign key constraints
+    FOREIGN KEY (collection_session_id) REFERENCES collection_sessions(id),
+    FOREIGN KEY (supplier_id) REFERENCES suppliers(id),
+    FOREIGN KEY (marketer_id) REFERENCES Users(user_id),
+    FOREIGN KEY (paper_type_id) REFERENCES PaperType(id)
+);
 
 -- 18. Moms Handicrafts
 CREATE TABLE `Moms_Handicrafts` (

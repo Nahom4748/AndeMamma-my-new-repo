@@ -122,66 +122,87 @@ async function getRegions() {
 }
 
 async function updateSupplier(supplierId, supplierData) {
-  console.log('supplierData:', supplierData, supplierId);
-  const { company_name, contact_person, phone, location, region_code, sector_code, janitors } = supplierData;
+  console.log("Updating Supplier:", supplierId, supplierData);
 
-  if (!supplierId || !company_name || !contact_person || !phone || !location || !region_code) {
-    throw new Error('Missing required fields');
+  // ✅ Support both single and array contact formats
+  const {
+    company_name,
+    contact_persons,
+    contact_person,
+    phone,
+    location,
+    region_code,
+    sector_code,
+    janitors
+  } = supplierData;
+
+  // ✅ Use first contact_persons element if array exists
+  const contact = Array.isArray(contact_persons) && contact_persons.length > 0
+    ? contact_persons[0]
+    : contact_person || {};
+
+  const contactName = contact.name || null;
+  const contactPhone = contact.phone || null;
+  const contactEmail = contact.email || null;
+
+  if (!supplierId || !company_name || !phone || !location || !region_code) {
+    throw new Error("Missing required fields");
   }
 
-  // Get region ID
-  const regionRows = await db.query('SELECT id FROM regions WHERE code = ?', [region_code]);
+  // ✅ Get region ID
+  const regionRows = await db.query("SELECT id FROM regions WHERE code = ?", [region_code]);
   if (!regionRows.length) {
     throw new Error(`Region with code "${region_code}" not found`);
   }
   const regionId = regionRows[0].id;
 
-  // Update supplier info
+  // ✅ Update supplier info
   const updateResult = await db.query(
-    'UPDATE suppliers SET company_name = ?, contact_person = ?, phone = ?, location = ?, region_id = ?,sector_id=? WHERE id = ?',
-    [company_name, contact_person, phone, location, regionId, sector_code,supplierId]
+    `UPDATE suppliers 
+     SET company_name = ?, contact_person = ?, contact_phone = ?, contact_email = ?, 
+         phone = ?, location = ?, region_id = ?, sector_id = ?
+     WHERE id = ?`,
+    [company_name, contactName, contactPhone, contactEmail, phone, location, regionId, sector_code, supplierId]
   );
+
   if (updateResult.affectedRows === 0) {
     throw new Error(`Supplier with ID ${supplierId} not found`);
   }
 
-  // Handle janitors
+  // ✅ Handle janitors update
   if (Array.isArray(janitors)) {
-    // Fetch existing janitor IDs
-    const existingJanitors = await db.query('SELECT id FROM janitors WHERE supplier_id = ?', [supplierId]);
+    const existingJanitors = await db.query("SELECT id FROM janitors WHERE supplier_id = ?", [supplierId]);
     const existingIds = existingJanitors.map(j => j.id);
     const incomingIds = janitors.filter(j => j.id).map(j => j.id);
 
-    // Delete janitors removed from the update
+    // Delete removed janitors
     const toDelete = existingIds.filter(id => !incomingIds.includes(id));
     if (toDelete.length > 0) {
-      const placeholders = toDelete.map(() => '?').join(', ');
-      const sqlDelete = `DELETE FROM janitors WHERE id IN (${placeholders})`;
-      await db.query(sqlDelete, toDelete);
+      const placeholders = toDelete.map(() => "?").join(", ");
+      await db.query(`DELETE FROM janitors WHERE id IN (${placeholders})`, toDelete);
     }
 
-    // Upsert janitors (update existing or insert new)
+    // Insert or update janitors
     for (const janitor of janitors) {
       const { id, name, phone, account } = janitor;
-
       if (id && existingIds.includes(id)) {
-        // Update existing janitor
         await db.query(
-          'UPDATE janitors SET name = ?, phone = ?, account = ? WHERE id = ? AND supplier_id = ?',
+          "UPDATE janitors SET name = ?, phone = ?, account = ? WHERE id = ? AND supplier_id = ?",
           [name, phone, account, id, supplierId]
         );
       } else {
-        // Insert new janitor
         await db.query(
-          'INSERT INTO janitors (supplier_id, name, phone, account) VALUES (?, ?, ?, ?)',
+          "INSERT INTO janitors (supplier_id, name, phone, account) VALUES (?, ?, ?, ?)",
           [supplierId, name ?? null, phone ?? null, account ?? null]
         );
       }
     }
   }
 
+  console.log("✅ Supplier updated successfully:", supplierId);
   return { id: supplierId };
 }
+
 
 async function deleteSupplier(supplierId) {
   if (!supplierId) {

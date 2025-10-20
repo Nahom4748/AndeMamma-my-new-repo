@@ -531,6 +531,7 @@ async function getActiveOrders() {
 }
 
 
+
 // get getMarketerSuppliersWithPerformancewithmarketorid
 async function getMarketerSuppliersWithPerformance(marketerId) {
   if (!marketerId) {
@@ -707,6 +708,113 @@ async function updateOrderStatus(marketerId, orderId, newStatus, collectedKg = n
 }
 
 
+async function getSuppliersWithMarketerPerformance() {
+  const query = `
+    SELECT
+      u.user_id AS marketer_id,
+      CONCAT(u.first_name, ' ', u.last_name) AS marketer_name,
+      COUNT(DISTINCT sma.supplier_id) AS total_assigned_suppliers, -- ✅ total suppliers per marketer
+      DATE_FORMAT(c.collection_date, '%Y-%m') AS month_label,
+      SUM(CASE WHEN c.collection_type = 'Instore' THEN c.total_kg ELSE 0 END) AS total_instore_kg,
+      SUM(CASE WHEN c.collection_type = 'Regular' THEN c.total_kg ELSE 0 END) AS total_regular_kg,
+      SUM(c.total_kg) AS total_collected_kg
+    FROM SupplierMarketerAssignments sma
+    INNER JOIN Users u ON sma.marketer_id = u.user_id
+    INNER JOIN Suppliers s ON sma.supplier_id = s.id
+    LEFT JOIN (
+      SELECT 
+        i.supplier_id,
+        i.collection_date,
+        i.total_kg,
+        'Instore' AS collection_type
+      FROM InstoreCollection i
+      UNION ALL
+      SELECT
+        r.supplier_id,
+        r.collection_date,
+        r.total_kg,
+        'Regular' AS collection_type
+      FROM RegularCollection r
+    ) c ON s.id = c.supplier_id
+    WHERE
+      c.collection_date >= DATE_FORMAT(CURDATE(), '%Y-%m-01')
+      AND c.collection_date < DATE_ADD(DATE_FORMAT(CURDATE(), '%Y-%m-01'), INTERVAL 1 MONTH)
+    GROUP BY
+      u.user_id
+    ORDER BY
+      total_collected_kg DESC;
+  `;
+
+  const rows = await db.query(query);
+
+  return rows.map(row => ({
+    marketerId: row.marketer_id,
+    marketerName: row.marketer_name,
+    totalAssignedSuppliers: Number(row.total_assigned_suppliers || 0),
+    month: row.month_label,
+    totalInstoreKg: Number(row.total_instore_kg || 0),
+    totalRegularKg: Number(row.total_regular_kg || 0),
+    totalCollectedKg: Number(row.total_collected_kg || 0),
+  }));
+}
+
+
+
+
+
+
+async function getSuppliersWithMarketerPerformanceCountmouth(year, month) {
+ const query = `
+      SELECT
+        u.user_id AS marketer_id,
+        CONCAT(u.first_name, ' ', u.last_name) AS marketer_name,
+        COUNT(DISTINCT sma.supplier_id) AS total_assigned_suppliers,
+        DATE_FORMAT(c.collection_date, '%Y-%m') AS month_label,
+        SUM(CASE WHEN c.collection_type = 'Instore' THEN c.total_kg ELSE 0 END) AS total_instore_kg,
+        SUM(CASE WHEN c.collection_type = 'Regular' THEN c.total_kg ELSE 0 END) AS total_regular_kg,
+        SUM(c.total_kg) AS total_collected_kg
+      FROM SupplierMarketerAssignments sma
+      INNER JOIN Users u ON sma.marketer_id = u.user_id
+      INNER JOIN Suppliers s ON sma.supplier_id = s.id
+      LEFT JOIN (
+        SELECT 
+          i.supplier_id,
+          i.collection_date,
+          i.total_kg,
+          'Instore' AS collection_type
+        FROM InstoreCollection i
+        UNION ALL
+        SELECT
+          r.supplier_id,
+          r.collection_date,
+          r.total_kg,
+          'Regular' AS collection_type
+        FROM RegularCollection r
+      ) c ON s.id = c.supplier_id
+      WHERE
+        YEAR(c.collection_date) = ?
+        AND MONTH(c.collection_date) = ?
+      GROUP BY
+        u.user_id
+      ORDER BY
+        total_collected_kg DESC;
+    `;
+
+    const rows = await db.query(query, [year, month]);
+
+    const formatted = rows.map(row => ({
+      marketerId: row.marketer_id,
+      marketerName: row.marketer_name,
+      totalAssignedSuppliers: Number(row.total_assigned_suppliers || 0),
+      month: row.month_label,
+      totalInstoreKg: Number(row.total_instore_kg || 0),
+      totalRegularKg: Number(row.total_regular_kg || 0),
+      totalCollectedKg: Number(row.total_collected_kg || 0),
+    }));
+
+    return formatted;
+
+  } 
 
 
 
@@ -742,5 +850,7 @@ module.exports = {
   getActiveOrdersByMarketer,
   getActiveOrders,
   getMarketerSuppliersWithPerformance,
-  updateOrderStatus
+  updateOrderStatus,
+  getSuppliersWithMarketerPerformance,
+  getSuppliersWithMarketerPerformanceCountmouth
 };

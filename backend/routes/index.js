@@ -18,6 +18,7 @@ const dashboardStatsRouter = require("./dashboardStats.routes");
 const mammasProductRouter = require("./mammasproduct.routes");
 const inventoryRouter = require("./inventory.routes");
 const innovationRouter = require("./innovation.routes");
+const CollectionCoordinatorRouter = require("./CollectionCoordinator.routes");
 
 
 // Use routers
@@ -34,6 +35,7 @@ router.use(dashboardStatsRouter);
 router.use(mammasProductRouter);
 router.use(inventoryRouter);
 router.use(innovationRouter);
+router.use(CollectionCoordinatorRouter);
 
 
 module.exports = router;
